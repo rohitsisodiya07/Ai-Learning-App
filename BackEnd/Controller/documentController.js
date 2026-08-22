@@ -9,20 +9,28 @@ const mongoose = require('mongoose');
 const path = require('path');
 const { createNotification } = require('../Controller/notificationController');
 
-// Upload Pdf Document
 const uploadDocument = async (req, res) => {
     try {
         if (!req.file) {
-            return res.status(400).json({ success: false, message: "Please Upload a PDF File" });
+            return res.status(400).json({
+                success: false,
+                message: "Please Upload a PDF File"
+            });
         }
 
         const { title } = req.body;
+
         if (!title || !title.trim()) {
             await fs.unlink(req.file.path);
-            return res.status(400).json({ success: false, message: "Please Provide a Document Title" });
+
+            return res.status(400).json({
+                success: false,
+                message: "Please Provide a Document Title"
+            });
         }
 
-        const baseUrl = `http://localhost:${process.env.PORT || 4000}`;
+        // Dynamic URL for local and production
+        const baseUrl = `${req.protocol}://${req.get("host")}`;
         const fileUrl = `${baseUrl}/uploads/documents/${req.file.filename}`;
 
         const document = await documentModel.create({
@@ -34,7 +42,7 @@ const uploadDocument = async (req, res) => {
             status: "processing"
         });
 
-        // 1. Upload Notification
+        // Upload Notification
         await createNotification({
             userId: req.user._id,
             title: "Document Uploaded",
@@ -59,8 +67,10 @@ const uploadDocument = async (req, res) => {
                 status: document.status
             }
         });
+
     } catch (error) {
         console.error("Upload Document Error:", error);
+
         if (req.file?.path) {
             try {
                 await fs.unlink(req.file.path);
@@ -68,7 +78,11 @@ const uploadDocument = async (req, res) => {
                 console.error("File Delete Error:", fileError);
             }
         }
-        return res.status(500).json({ success: false, message: "Failed to upload document" });
+
+        return res.status(500).json({
+            success: false,
+            message: "Failed to upload document"
+        });
     }
 };
 

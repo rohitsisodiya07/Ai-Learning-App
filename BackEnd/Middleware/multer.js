@@ -3,6 +3,7 @@ const path = require('path');
 const fs = require('fs');
 
 const uploadDir = path.join(__dirname, '../uploads/documents');
+
 // Create folder if not exists
 if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true });
@@ -12,6 +13,7 @@ if (!fs.existsSync(uploadDir)) {
 const storage = multer.diskStorage({
 
     destination: (req, file, cb) => {
+        console.log('Upload directory:', uploadDir);
         cb(null, uploadDir);
     },
 
@@ -37,10 +39,11 @@ const fileFilter = (req, file, cb) => {
     }
 };
 
-// Multer - No file size limit
+// No file size limit
 const upload = multer({
     storage,
     fileFilter
 });
 
+// console.log('Uploaded file:', req.file);
 module.exports = upload;
