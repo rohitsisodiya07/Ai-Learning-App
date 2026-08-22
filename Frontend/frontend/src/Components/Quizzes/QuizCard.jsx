@@ -23,6 +23,9 @@ const QuizCard = ({ quiz, onDelete }) => {
     // =========================
 
     const handleTakeQuiz = () => {
+        console.log("Quiz ID:", quiz?._id);
+        console.log("Quiz Object:", quiz);
+
         navigate(`/quiz/${quiz._id}`);
     };
 

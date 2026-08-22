@@ -20,6 +20,8 @@ import toast from "react-hot-toast";
 import api from "../../Api";
 
 const QuizTakePage = () => {
+    console.log("🔥 QuizTakePage Loaded");
+
     const { quizId } = useParams();
     const navigate = useNavigate();
 
