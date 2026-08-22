@@ -53,30 +53,103 @@ const generateFlashcardsFromDocument = async (req, res) => {
 // Generate Quiz From Documents
 const generateQuizFromDocuments = async (req, res) => {
     try {
-        const { documentId, numQuestions = 5, title } = req.body;
+        const {
+            documentId,
+            numQuestions = 5,
+            title,
+            questionType = "mixed"
+        } = req.body;
 
-        if (!documentId) return res.status(400).json({ success: false, message: "Please provide DocumentId" });
+        // Validate Document ID
+        if (!documentId) {
+            return res.status(400).json({
+                success: false,
+                message: "Please provide DocumentId"
+            });
+        }
 
-        const document = await documentModel.findOne({ _id: documentId, userId: req.user._id, status: "ready" });
-        if (!document) return res.status(404).json({ success: false, message: "Document not found or not ready" });
+        // Find Document
+        const document = await documentModel.findOne({
+            _id: documentId,
+            userId: req.user._id,
+            status: "ready"
+        });
 
-        const questions = await generateQuiz(document.extractedText, parseInt(numQuestions));
+        if (!document) {
+            return res.status(404).json({
+                success: false,
+                message: "Document not found or not ready"
+            });
+        }
 
+        // Validate Question Type
+        const allowedTypes = [
+            "mcq",
+            "true_false",
+            "short_answer",
+            "mixed"
+        ];
+
+        if (!allowedTypes.includes(questionType)) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid question type"
+            });
+        }
+
+        // Validate Number of Questions
+        const questionCount = parseInt(numQuestions);
+
+        if (
+            isNaN(questionCount) ||
+            questionCount < 1 ||
+            questionCount > 50
+        ) {
+            return res.status(400).json({
+                success: false,
+                message: "Number of questions must be between 1 and 50"
+            });
+        }
+
+        // Generate Questions Using AI
+        const questions = await generateQuiz(
+            document.extractedText,
+            questionCount,
+            questionType
+        );
+
+        if (!questions || questions.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: "Failed to generate questions from document"
+            });
+        }
+
+        // Create Quiz
         const quiz = await quizModel.create({
             userId: req.user._id,
             documentId: document._id,
-            title: title || `${document.title} - Quiz`,
-            questions: questions,
+
+            title:
+                title?.trim() ||
+                `${document.title} - Quiz`,
+
+            questions,
+
             totalQuestions: questions.length,
+
             userAnswers: [],
-            score: 0
+
+            score: 0,
+
+            questionType
         });
 
-        // Add Notification
+        // Notification
         await createNotification({
             userId: req.user._id,
             title: "Quiz Generated",
-            message: "A new quiz has been generated from your document.",
+            message: `"${quiz.title}" has been generated successfully.`,
             type: "quiz",
             relatedId: document._id
         });
@@ -86,9 +159,20 @@ const generateQuizFromDocuments = async (req, res) => {
             message: "Quiz generated successfully",
             data: quiz
         });
+
     } catch (error) {
-        console.error("Generate Quiz Error:", error);
-        return res.status(500).json({ success: false, message: error.message });
+
+        console.error(
+            "Generate Quiz Error:",
+            error
+        );
+
+        return res.status(500).json({
+            success: false,
+            message:
+                error.message ||
+                "Failed to generate quiz"
+        });
     }
 };
 

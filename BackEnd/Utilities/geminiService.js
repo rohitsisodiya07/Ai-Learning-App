@@ -145,54 +145,262 @@ ${text.substring(0, 15000)}`;
         throw new Error("Failed to generate flashcards");
     }
 };
-
 // Generate Quiz
-const generateQuiz = async (text, numQuestions = 5) => {
-    const prompt = `Generate exactly ${numQuestions} multiple choice questions from the following text.
-Format each question exactly like this:
+const generateQuiz = async (
+    text,
+    numQuestions = 5,
+    questionType = "mixed"
+) => {
+
+    let typeInstruction = "";
+
+    if (questionType === "mcq") {
+        typeInstruction = `
+Generate only MCQ questions.
+All questions must be of type mcq.
+`;
+    }
+
+    else if (questionType === "true_false") {
+        typeInstruction = `
+Generate only True/False questions.
+All questions must be of type true_false.
+`;
+    }
+
+    else if (questionType === "short_answer") {
+        typeInstruction = `
+Generate only Short Answer questions.
+All questions must be of type short_answer.
+`;
+    }
+
+    else {
+        typeInstruction = `
+Generate a balanced mix of:
+- mcq
+- true_false
+- short_answer
+
+Try to include all three types.
+`;
+    }
+
+    const prompt = `
+Generate exactly ${numQuestions} questions from the following text.
+
+${typeInstruction}
+
+Use this exact format for EVERY question:
+
+TYPE: [mcq / true_false / short_answer]
 Q: [Question]
+
+For MCQ:
 01: [Option 1]
 02: [Option 2]
 03: [Option 3]
 04: [Option 4]
-C: [Correct option - exactly as written above]
+
+For True/False:
+01: True
+02: False
+
+For Short Answer:
+01: N/A
+
+C: [Correct answer - exactly as written]
 E: [Brief explanation]
 D: [Difficulty: easy, medium, or hard]
+
 Separate each question with:
 ---
 
+IMPORTANT RULES:
+
+1. Generate exactly ${numQuestions} questions.
+2. Questions must be based only on the provided text.
+3. MCQ must have exactly 4 options.
+4. True/False must have exactly 2 options: True and False.
+5. Short Answer must have no real options.
+6. For Short Answer use:
+   01: N/A
+7. C must contain the correct answer.
+8. E must contain a brief explanation.
+9. D must be easy, medium, or hard.
+10. Do not add any extra text outside the required format.
+
 Text:
-${text.substring(0, 15000)}`;
+${text.substring(0, 15000)}
+`;
 
     try {
+
         const generatedText = await generateAIResponse(prompt);
+
         const questions = [];
-        const questionBlocks = generatedText.split("---").filter(q => q.trim());
+
+        const questionBlocks = generatedText
+            .split("---")
+            .filter(q => q.trim());
 
         for (const block of questionBlocks) {
-            const lines = block.trim().split("\n");
-            let question = "", options = [], correctAnswer = "", explanation = "", difficulty = "medium";
+
+            const lines = block
+                .trim()
+                .split("\n")
+                .map(line => line.trim())
+                .filter(Boolean);
+
+            let type = "mcq";
+            let question = "";
+            let options = [];
+            let correctAnswer = "";
+            let explanation = "";
+            let difficulty = "medium";
 
             for (const line of lines) {
-                const trimmed = line.trim();
-                if (trimmed.startsWith("Q:")) question = trimmed.substring(2).trim();
-                else if (/^0[1-4]:/.test(trimmed)) options.push(trimmed.substring(3).trim());
-                else if (trimmed.startsWith("C:")) correctAnswer = trimmed.substring(2).trim();
-                else if (trimmed.startsWith("E:")) explanation = trimmed.substring(2).trim();
-                else if (trimmed.startsWith("D:")) {
-                    const diff = trimmed.substring(2).trim().toLowerCase();
-                    if (["easy", "medium", "hard"].includes(diff)) difficulty = diff;
+
+                // TYPE
+                if (line.startsWith("TYPE:")) {
+
+                    const questionType = line
+                        .substring(5)
+                        .trim()
+                        .toLowerCase();
+
+                    if (
+                        ["mcq", "true_false", "short_answer"]
+                            .includes(questionType)
+                    ) {
+                        type = questionType;
+                    }
+                }
+
+                // QUESTION
+                else if (line.startsWith("Q:")) {
+
+                    question = line
+                        .substring(2)
+                        .trim();
+                }
+
+                // OPTIONS
+                else if (/^0[1-4]:/.test(line)) {
+
+                    const option = line
+                        .substring(3)
+                        .trim();
+
+                    if (option && option !== "N/A") {
+                        options.push(option);
+                    }
+                }
+
+                // CORRECT ANSWER
+                else if (line.startsWith("C:")) {
+
+                    correctAnswer = line
+                        .substring(2)
+                        .trim();
+                }
+
+                // EXPLANATION
+                else if (line.startsWith("E:")) {
+
+                    explanation = line
+                        .substring(2)
+                        .trim();
+                }
+
+                // DIFFICULTY
+                else if (line.startsWith("D:")) {
+
+                    const diff = line
+                        .substring(2)
+                        .trim()
+                        .toLowerCase();
+
+                    if (
+                        ["easy", "medium", "hard"]
+                            .includes(diff)
+                    ) {
+                        difficulty = diff;
+                    }
                 }
             }
 
-            if (question && options.length === 4 && correctAnswer) {
-                questions.push({ question, options, correctAnswer, explanation, difficulty });
+            // MCQ
+            if (
+                type === "mcq" &&
+                question &&
+                options.length === 4 &&
+                correctAnswer
+            ) {
+
+                questions.push({
+                    type,
+                    question,
+                    options,
+                    correctAnswer,
+                    explanation,
+                    difficulty
+                });
+            }
+
+            // TRUE / FALSE
+            else if (
+                type === "true_false" &&
+                question &&
+                options.length === 2 &&
+                correctAnswer
+            ) {
+
+                questions.push({
+                    type,
+                    question,
+                    options,
+                    correctAnswer,
+                    explanation,
+                    difficulty
+                });
+            }
+
+            // SHORT ANSWER
+            else if (
+                type === "short_answer" &&
+                question &&
+                correctAnswer
+            ) {
+
+                questions.push({
+                    type,
+                    question,
+                    options: [],
+                    correctAnswer,
+                    explanation,
+                    difficulty
+                });
             }
         }
+
+        console.log(
+            "Generated Questions:",
+            questions
+        );
+
         return questions.slice(0, numQuestions);
+
     } catch (error) {
-        console.error("Gemini Quiz Error:", error);
-        throw new Error("Failed to generate quiz");
+
+        console.error(
+            "Gemini Quiz Error:",
+            error
+        );
+
+        throw new Error(
+            "Failed to generate quiz"
+        );
     }
 };
 
