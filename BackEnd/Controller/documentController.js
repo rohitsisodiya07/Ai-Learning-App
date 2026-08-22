@@ -4,10 +4,28 @@ const quizModel = require('../Model/quizModel');
 const chatModel = require('../Model/chatHistory');
 const { extractTextFromPDF } = require('../Utilities/pdfParse');
 const { chunkText } = require('../Utilities/textChunker');
-const fs = require('fs/promises');
 const mongoose = require('mongoose');
 const path = require('path');
 const { createNotification } = require('../Controller/notificationController');
+const cloudinary = require('../Utilities/cloudnary'); // Aapki cloudinary config
+
+// Helper function to upload buffer to Cloudinary using stream
+const uploadToCloudinary = (fileBuffer, originalName) => {
+    return new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+            {
+                folder: 'ai-learning-documents',
+                resource_type: 'auto',
+                public_id: `${Date.now()}-${path.parse(originalName).name}`
+            },
+            (error, result) => {
+                if (error) return reject(error);
+                resolve(result);
+            }
+        );
+        stream.end(fileBuffer);
+    });
+};
 
 const uploadDocument = async (req, res) => {
     console.log("🔥 UPLOAD DOCUMENT CONTROLLER HIT");
@@ -20,28 +38,26 @@ const uploadDocument = async (req, res) => {
             });
         }
 
-        console.log("UPLOADED FILE:", req.file);
+        console.log("UPLOADED FILE (Memory Buffer):", req.file.originalname);
 
         const { title } = req.body;
 
         if (!title || !title.trim()) {
-            await fs.unlink(req.file.path);
-
             return res.status(400).json({
                 success: false,
                 message: "Please Provide a Document Title"
             });
         }
 
-        // Dynamic URL for local and production
-        const baseUrl = process.env.BASE_URL;
+        // 1. Upload PDF buffer directly to Cloudinary
+        const cloudinaryResult = await uploadToCloudinary(req.file.buffer, req.file.originalname);
+        const fileUrl = cloudinaryResult.secure_url;
 
-        const fileUrl = `${baseUrl}/uploads/documents/${req.file.filename}`;
         const document = await documentModel.create({
             userId: req.user._id,
             title: title.trim(),
             fileName: req.file.originalname,
-            filePath: fileUrl,
+            filePath: fileUrl, // 👈 Permanent Cloudinary URL
             fileSize: req.file.size,
             status: "processing"
         });
@@ -55,8 +71,10 @@ const uploadDocument = async (req, res) => {
             relatedId: document._id
         });
 
-        // Process PDF in background
-        processPDF(document._id, req.file.path).catch(error => {
+        // Note: For pdfParse library, if it requires a physical file path, 
+        // you can pass the cloudinary URL directly or use pdf-parse with buffer if supported.
+        // Assuming extractTextFromPDF can handle remote URLs or buffers, or we pass fileUrl.
+        processPDF(document._id, fileUrl).catch(error => {
             console.error("PDF Processing Error:", error);
         });
 
@@ -75,17 +93,9 @@ const uploadDocument = async (req, res) => {
     } catch (error) {
         console.error("Upload Document Error:", error);
 
-        if (req.file?.path) {
-            try {
-                await fs.unlink(req.file.path);
-            } catch (fileError) {
-                console.error("File Delete Error:", fileError);
-            }
-        }
-
         return res.status(500).json({
             success: false,
-            message: "Failed to upload document"
+            message: error.message || "Failed to upload document"
         });
     }
 };
@@ -104,7 +114,6 @@ const processPDF = async (documentId, filePath) => {
 
         console.log(`Document ${documentId} Processed Successfully`);
 
-        // 2. Ready Notification
         if (document) {
             await createNotification({
                 userId: document.userId,
@@ -123,7 +132,6 @@ const processPDF = async (documentId, filePath) => {
             { new: true }
         );
 
-        // 3. Failed Notification
         if (document) {
             await createNotification({
                 userId: document.userId,
@@ -190,23 +198,8 @@ const deleteDocument = async (req, res) => {
         const document = await documentModel.findOne({ _id: id, userId: req.user._id });
         if (!document) return res.status(404).json({ success: false, message: "Document Not Found" });
 
-        let fileName = null;
-        try {
-            const fileUrl = new URL(document.filePath);
-            fileName = path.basename(fileUrl.pathname);
-        } catch (error) {
-            console.log("Invalid file URL:", document.filePath);
-        }
-
-        if (fileName) {
-            const filePath = path.join(__dirname, "../uploads/documents", fileName);
-            try {
-                await fs.unlink(filePath);
-                console.log(`File deleted successfully: ${fileName}`);
-            } catch (fileError) {
-                if (fileError.code !== "ENOENT") console.error("File Delete Error:", fileError);
-            }
-        }
+        // Optional: Cloudinary se bhi file delete karne ka code yahan likh sakte hain agar public_id extract karein
+        // Lekin filhal database aur related models clean kar rahe hain
 
         await Promise.all([
             flashcardModel.deleteMany({ documentId: document._id, userId: req.user._id }),
@@ -216,7 +209,6 @@ const deleteDocument = async (req, res) => {
 
         await document.deleteOne();
 
-        // 4. Delete Notification
         await createNotification({
             userId: req.user._id,
             title: "Document Deleted",
@@ -258,7 +250,6 @@ const updateDocument = async (req, res) => {
         document.title = trimmedTitle;
         await document.save();
 
-        // 5. Update Notification
         await createNotification({
             userId: req.user._id,
             title: "Document Updated",

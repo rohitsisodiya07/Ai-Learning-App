@@ -18,7 +18,6 @@ import FlashCardListPage from "./Pages/FlashCards/FlashCardListPage";
 import FlashCardPage from "./Pages/FlashCards/FlashCardPage";
 
 import ProfilePage from "./Pages/Profile/ProfilePage";
-
 import NotFoundPage from "./Pages/NotFoundPage";
 
 import QuizTakePage from "./Components/Quizzes/QuizTakePage";
@@ -27,7 +26,6 @@ import QuizResultPage from "./Components/Quizzes/QuizResultPage";
 function App() {
   return (
     <BrowserRouter>
-
       <Toaster
         position="top-right"
         toastOptions={{
@@ -36,102 +34,43 @@ function App() {
       />
 
       <Routes>
+        {/* PUBLIC ROUTES */}
+        <Route path="/" element={<Login />} />
+        <Route path="/signup" element={<Signup />} />
+        <Route path="/forgot" element={<ForgotPassword />} />
 
-        {/* ================= PUBLIC ROUTES ================= */}
-
-        <Route
-          path="/"
-          element={<Login />}
-        />
-
-        <Route
-          path="/signup"
-          element={<Signup />}
-        />
-
-        <Route
-          path="/forgot"
-          element={<ForgotPassword />}
-        />
-
-
-        {/* ================= PROTECTED ROUTES ================= */}
-
+        {/* PROTECTED ROUTES */}
         <Route element={<ProtectedRoute />}>
-
-          {/* ================= APP LAYOUT ================= */}
-
           <Route element={<AppLayout />}>
 
             {/* Dashboard */}
-            <Route
-              path="/dashboard"
-              element={<DashboardPage />}
-            />
+            <Route path="/dashboard" element={<DashboardPage />} />
 
+            {/* DOCUMENTS */}
+            <Route path="/documents" element={<DocumentListPage />} />
+            <Route path="/documents/:id" element={<DocumentDetailPage />} />
 
-            {/* ================= DOCUMENTS ================= */}
+            {/* FLASHCARDS */}
+            <Route path="/flashcards" element={<FlashCardListPage />} />
+            <Route path="/documents/:documentId/flashcards" element={<FlashCardPage />} />
 
-            <Route
-              path="/documents"
-              element={<DocumentListPage />}
-            />
+            {/* QUIZZES (Covering both path styles for safety) */}
+            <Route path="/documents/:documentId/quiz/:quizId" element={<QuizTakePage />} />
+            <Route path="/documents/:documentId/quiz/:quizId/results" element={<QuizResultPage />} />
 
-            <Route
-              path="/documents/:id"
-              element={<DocumentDetailPage />}
-            />
+            {/* Direct Quiz Routes (Matched with QuizCard.jsx navigation) */}
+            <Route path="/quiz/:quizId" element={<QuizTakePage />} />
+            <Route path="/quiz/:quizId/results" element={<QuizResultPage />} />
 
-
-            {/* ================= FLASHCARDS ================= */}
-
-            {/* Flashcard Sets List */}
-            <Route
-              path="/flashcards"
-              element={<FlashCardListPage />}
-            />
-
-            {/* Study Now */}
-            <Route
-              path="/documents/:documentId/flashcards"
-              element={<FlashCardPage />}
-            />
-
-
-            {/* ================= QUIZZES ================= */}
-
-            <Route
-              path="/quiz/:quizId"
-              element={<QuizTakePage />}
-            />
-
-            <Route
-              path="/quiz/:quizId/results"
-              element={<QuizResultPage />}
-            />
-
-
-            {/* ================= PROFILE ================= */}
-
-            <Route
-              path="/profile"
-              element={<ProfilePage />}
-            />
+            {/* PROFILE */}
+            <Route path="/profile" element={<ProfilePage />} />
 
           </Route>
-
         </Route>
 
-
-        {/* ================= 404 ================= */}
-
-        <Route
-          path="*"
-          element={<NotFoundPage />}
-        />
-
+        {/* 404 NOT FOUND */}
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
-
     </BrowserRouter>
   );
 }

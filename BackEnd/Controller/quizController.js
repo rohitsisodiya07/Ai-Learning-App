@@ -55,39 +55,17 @@ const submitQuiz = async (req, res) => {
         const { answers } = req.body;
 
         if (!id || !mongoose.Types.ObjectId.isValid(id)) {
-            return res.status(400).json({
-                success: false,
-                message: "Invalid or missing Quiz ID"
-            });
+            return res.status(400).json({ success: false, message: "Invalid or missing Quiz ID" });
         }
 
         if (!Array.isArray(answers)) {
-            return res.status(400).json({
-                success: false,
-                message: "Answers must be an array"
-            });
+            return res.status(400).json({ success: false, message: "Answers must be an array" });
         }
 
-        const quiz = await quizModel.findOne({
-            _id: id,
-            userId: req.user._id
-        });
+        const quiz = await quizModel.findOne({ _id: id, userId: req.user._id });
+        if (!quiz) return res.status(404).json({ success: false, message: "Quiz not found" });
+        if (quiz.completedAt) return res.status(400).json({ success: false, message: "Quiz already completed" });
 
-        if (!quiz) {
-            return res.status(404).json({
-                success: false,
-                message: "Quiz not found"
-            });
-        }
-
-        if (quiz.completedAt) {
-            return res.status(400).json({
-                success: false,
-                message: "Quiz already completed"
-            });
-        }
-
-        // Check all questions are answered
         if (answers.length !== quiz.questions.length) {
             return res.status(400).json({
                 success: false,
@@ -95,117 +73,50 @@ const submitQuiz = async (req, res) => {
             });
         }
 
-        // Check duplicate question indexes
-        const uniqueIndexes = new Set(
-            answers.map((answer) => answer.questionIndex)
-        );
-
+        const uniqueIndexes = new Set(answers.map((answer) => answer.questionIndex));
         if (uniqueIndexes.size !== quiz.questions.length) {
-            return res.status(400).json({
-                success: false,
-                message: "Each question must be answered exactly once"
-            });
+            return res.status(400).json({ success: false, message: "Each question must be answered exactly once" });
         }
 
-        // Normalize answer
         const normalizeAnswer = (answer) => {
-            return String(answer || "")
-                .trim()
-                .replace(/\s+/g, " ")
-                .toLowerCase();
+            return String(answer || "").trim().replace(/\s+/g, " ").toLowerCase();
         };
 
-        // Remove "01:" / "02:" etc. if present
         const cleanCorrectAnswer = (answer) => {
-            return String(answer || "")
-                .replace(/^\s*\d+\s*:\s*/, "")
-                .trim();
+            return String(answer || "").replace(/^\s*\d+\s*:\s*/, "").trim();
         };
 
         let correctCount = 0;
-
         const userAnswers = [];
 
         answers.forEach((answer) => {
+            const { questionIndex, selectedAnswer } = answer;
 
-            const {
-                questionIndex,
-                selectedAnswer
-            } = answer;
-
-            // Validate question index
-            if (
-                typeof questionIndex !== "number" ||
-                questionIndex < 0 ||
-                questionIndex >= quiz.questions.length
-            ) {
+            if (typeof questionIndex !== "number" || questionIndex < 0 || questionIndex >= quiz.questions.length) {
                 throw new Error("Invalid question index");
             }
 
-            // Validate answer
-            if (
-                typeof selectedAnswer !== "string" ||
-                !selectedAnswer.trim()
-            ) {
+            if (typeof selectedAnswer !== "string" || !selectedAnswer.trim()) {
                 throw new Error("Invalid selected answer");
             }
 
             const question = quiz.questions[questionIndex];
+            const originalCorrectAnswer = question.correctAnswer;
+            const cleanedCorrectAnswer = cleanCorrectAnswer(originalCorrectAnswer);
 
-            const originalCorrectAnswer =
-                question.correctAnswer;
-
-            const cleanedCorrectAnswer =
-                cleanCorrectAnswer(originalCorrectAnswer);
-
-            const normalizedSelected =
-                normalizeAnswer(selectedAnswer);
-
-            const normalizedCorrect =
-                normalizeAnswer(cleanedCorrectAnswer);
+            const normalizedSelected = normalizeAnswer(selectedAnswer);
+            const normalizedCorrect = normalizeAnswer(cleanedCorrectAnswer);
 
             let isCorrect = false;
 
-            // =========================
-            // MCQ
-            // =========================
-            if (question.type === "mcq") {
-
-                isCorrect =
-                    normalizedSelected === normalizedCorrect;
+            // FIX: Using question.questionType instead of question.type
+            if (question.questionType === "mcq" || question.questionType === "true_false" || question.questionType === "short_answer") {
+                isCorrect = normalizedSelected === normalizedCorrect;
+            } else {
+                isCorrect = normalizedSelected === normalizedCorrect;
             }
 
-            // =========================
-            // TRUE / FALSE
-            // =========================
-            else if (question.type === "true_false") {
-
-                isCorrect =
-                    normalizedSelected === normalizedCorrect;
-            }
-
-            // =========================
-            // SHORT ANSWER
-            // =========================
-            else if (question.type === "short_answer") {
-
-                // Basic exact matching for now
-                isCorrect =
-                    normalizedSelected === normalizedCorrect;
-            }
-
-            // =========================
-            // Fallback
-            // =========================
-            else {
-
-                isCorrect =
-                    normalizedSelected === normalizedCorrect;
-            }
-
-            if (isCorrect) {
-                correctCount++;
-            }
+            if (isCorrect) correctCount++;
 
             userAnswers.push({
                 questionIndex,
@@ -215,13 +126,8 @@ const submitQuiz = async (req, res) => {
             });
         });
 
-        const totalQuestions =
-            quiz.questions.length;
-
-        const score =
-            Math.round(
-                (correctCount / totalQuestions) * 100
-            );
+        const totalQuestions = quiz.questions.length;
+        const score = Math.round((correctCount / totalQuestions) * 100);
 
         quiz.userAnswers = userAnswers;
         quiz.score = score;
@@ -232,7 +138,6 @@ const submitQuiz = async (req, res) => {
         return res.status(200).json({
             success: true,
             message: "Quiz submitted successfully",
-
             data: {
                 quizId: quiz._id,
                 score,
@@ -242,20 +147,9 @@ const submitQuiz = async (req, res) => {
                 completedAt: quiz.completedAt
             }
         });
-
     } catch (error) {
-
-        console.error(
-            "Submit Quiz Error:",
-            error
-        );
-
-        return res.status(500).json({
-            success: false,
-            message:
-                error.message ||
-                "Failed to submit quiz"
-        });
+        console.error("Submit Quiz Error:", error);
+        return res.status(500).json({ success: false, message: error.message || "Failed to submit quiz" });
     }
 };
 
@@ -265,102 +159,53 @@ const getQuizResults = async (req, res) => {
         const { id } = req.params;
 
         if (!id || !mongoose.Types.ObjectId.isValid(id)) {
-            return res.status(400).json({
-                success: false,
-                message: "Invalid or missing Quiz ID"
-            });
+            return res.status(400).json({ success: false, message: "Invalid or missing Quiz ID" });
         }
 
         const quiz = await quizModel
-            .findOne({
-                _id: id,
-                userId: req.user._id
-            })
+            .findOne({ _id: id, userId: req.user._id })
             .populate("documentId", "title");
 
-        if (!quiz) {
-            return res.status(404).json({
-                success: false,
-                message: "Quiz not found"
-            });
-        }
-
-        if (!quiz.completedAt) {
-            return res.status(400).json({
-                success: false,
-                message: "Quiz has not been completed yet"
-            });
-        }
+        if (!quiz) return res.status(404).json({ success: false, message: "Quiz not found" });
+        if (!quiz.completedAt) return res.status(400).json({ success: false, message: "Quiz has not been completed yet" });
 
         const detailedResults = quiz.questions.map((question, index) => {
-
-            const userAnswer = quiz.userAnswers.find(
-                answer => answer.questionIndex === index
-            );
+            const userAnswer = quiz.userAnswers.find(answer => answer.questionIndex === index);
 
             return {
                 questionIndex: index,
-
-                // Question Type
-                type: question.type,
-
+                // FIX: mapping questionType to type for frontend compatibility
+                type: question.questionType,
                 question: question.question,
-
                 options: question.options,
-
                 correctAnswer: question.correctAnswer,
-
-                selectedAnswer: userAnswer
-                    ? userAnswer.selectedAnswer
-                    : null,
-
-                isCorrect: userAnswer
-                    ? userAnswer.isCorrect
-                    : false,
-
+                selectedAnswer: userAnswer ? userAnswer.selectedAnswer : null,
+                isCorrect: userAnswer ? userAnswer.isCorrect : false,
                 explanation: question.explanation,
-
                 difficulty: question.difficulty
             };
         });
 
-        const correctAnswers = quiz.userAnswers.filter(
-            answer => answer.isCorrect === true
-        ).length;
+        const correctAnswers = quiz.userAnswers.filter(answer => answer.isCorrect === true).length;
 
         return res.status(200).json({
             success: true,
             message: "Quiz results fetched successfully",
-
             data: {
                 quizId: quiz._id,
-
                 title: quiz.title,
-
                 document: quiz.documentId,
-
                 score: quiz.score,
-
                 totalQuestions: quiz.totalQuestions,
-
                 correctAnswers,
-
                 attemptedQuestions: quiz.userAnswers.length,
-
                 completedAt: quiz.completedAt,
-
                 results: detailedResults
             }
         });
-
     } catch (error) {
-
         console.error("Get Quiz Results Error:", error);
-
-        return res.status(500).json({
-            success: false,
-            message: "Failed to fetch quiz results"
-        });
+        return res.status(500).json({ success: false, message: "Failed to fetch quiz results" });
     }
 };
 
@@ -374,15 +219,11 @@ const deleteQuiz = async (req, res) => {
         }
 
         const quiz = await quizModel.findOne({ _id: id, userId: req.user._id });
-
-        if (!quiz) {
-            return res.status(404).json({ success: false, message: "Quiz not found" });
-        }
+        if (!quiz) return res.status(404).json({ success: false, message: "Quiz not found" });
 
         const relatedDocumentId = quiz.documentId;
         await quiz.deleteOne();
 
-        // Created Notification for Quiz Deletion
         await createNotification({
             userId: req.user._id,
             title: "Quiz Deleted",

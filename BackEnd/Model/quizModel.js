@@ -7,47 +7,40 @@ const quizSchema = new mongoose.Schema(
             ref: "userSignup",
             required: true,
         },
-
         documentId: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "Document",
             required: true,
         },
-
         title: {
             type: String,
             required: true,
             trim: true,
         },
-
         questions: [
             {
-                type: {
+                // Renamed 'type' to 'questionType' to avoid Mongoose keyword conflict
+                questionType: {
                     type: String,
                     enum: ["mcq", "true_false", "short_answer"],
                     default: "mcq",
                 },
-
                 question: {
                     type: String,
                     required: true,
                 },
-
                 options: {
                     type: [String],
                     default: [],
                 },
-
                 correctAnswer: {
                     type: String,
                     required: true,
                 },
-
                 explanation: {
                     type: String,
                     default: "",
                 },
-
                 difficulty: {
                     type: String,
                     enum: ["easy", "medium", "hard"],
@@ -55,41 +48,34 @@ const quizSchema = new mongoose.Schema(
                 },
             },
         ],
-
         userAnswers: [
             {
                 questionIndex: {
                     type: Number,
                     required: true,
                 },
-
                 selectedAnswer: {
                     type: String,
                     required: true,
                 },
-
                 isCorrect: {
                     type: Boolean,
                     required: true,
                 },
-
                 answeredAt: {
                     type: Date,
                     default: Date.now,
                 },
             },
         ],
-
         score: {
             type: Number,
             default: 0,
         },
-
         totalQuestions: {
             type: Number,
             required: true,
         },
-
         completedAt: {
             type: Date,
             default: null,

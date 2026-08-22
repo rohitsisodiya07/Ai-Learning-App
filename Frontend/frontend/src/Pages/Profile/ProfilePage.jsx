@@ -8,7 +8,6 @@ import {
   Camera,
   Pencil,
   Save,
-  X,
   Loader2,
   Eye,
   EyeOff,
@@ -165,11 +164,16 @@ const ProfilePage = () => {
     }
   };
 
-  // Get correct image URL logic to prevent blob URL breaking
+  // Get correct image URL logic (Fixed to handle Cloudinary/absolute URLs properly)
   const getDisplayImage = () => {
     if (imagePreview) return imagePreview;
-    if (profileImage) return `${api}${profileImage}`;
-    return null;
+    if (!profileImage) return null;
+
+    if (profileImage.startsWith("http://") || profileImage.startsWith("https://")) {
+      return profileImage;
+    }
+
+    return `${api}${profileImage}`;
   };
 
   const currentDisplayImage = getDisplayImage();

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Mail, Lock, ArrowRight, Sparkles, CheckCircle2, AlertCircle } from 'lucide-react';
 import api from '../Api';
 import { useNavigate } from 'react-router-dom';
@@ -13,6 +13,15 @@ export default function Login() {
     });
     const [loading, setLoading] = useState(false);
     const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+
+    // Agar user pehle se logged in hai, toh login page khulte hi seedha dashboard bhej do
+    useEffect(() => {
+        const token = localStorage.getItem("token");
+        if (token) {
+            navigate("/dashboard", { replace: true });
+        }
+    }, [navigate]);
+    
 
     // Show toast
     const showToast = (message, type = 'success') => {
