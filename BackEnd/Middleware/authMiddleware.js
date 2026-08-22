@@ -4,7 +4,12 @@ const userModel = require("../Model/userModel");
 module.exports = async (req, res, next) => {
     try {
 
+        console.log("🔥 AUTH MIDDLEWARE HIT");
+
+
         const authHeader = req.headers.authorization;
+        console.log("AUTH HEADER:", authHeader);
+
 
         if (!authHeader || !authHeader.startsWith("Bearer ")) {
             return res.status(401).json({
@@ -35,6 +40,8 @@ module.exports = async (req, res, next) => {
                 message: "User not found"
             });
         }
+
+        console.log("✅ AUTH PASSED:", userDetails._id);
 
         req.user = userDetails;
 

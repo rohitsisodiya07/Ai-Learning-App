@@ -10,6 +10,8 @@ const path = require('path');
 const { createNotification } = require('../Controller/notificationController');
 
 const uploadDocument = async (req, res) => {
+    console.log("🔥 UPLOAD DOCUMENT CONTROLLER HIT");
+
     try {
         if (!req.file) {
             return res.status(400).json({
@@ -17,6 +19,8 @@ const uploadDocument = async (req, res) => {
                 message: "Please Upload a PDF File"
             });
         }
+
+        console.log("UPLOADED FILE:", req.file);
 
         const { title } = req.body;
 
@@ -30,9 +34,9 @@ const uploadDocument = async (req, res) => {
         }
 
         // Dynamic URL for local and production
-        const baseUrl = `${req.protocol}://${req.get("host")}`;
-        const fileUrl = `${baseUrl}/uploads/documents/${req.file.filename}`;
+        // const baseUrl = `${req.protocol}://${req.get("host")}`;
 
+        const fileUrl = `${process.env.BASE_URL}/uploads/documents/${req.file.filename}`;
         const document = await documentModel.create({
             userId: req.user._id,
             title: title.trim(),

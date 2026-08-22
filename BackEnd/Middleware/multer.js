@@ -4,12 +4,10 @@ const fs = require('fs');
 
 const uploadDir = path.join(__dirname, '../uploads/documents');
 
-// Create folder if not exists
 if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true });
 }
 
-// Configure storage
 const storage = multer.diskStorage({
 
     destination: (req, file, cb) => {
@@ -29,7 +27,6 @@ const storage = multer.diskStorage({
     }
 });
 
-// Only PDF files
 const fileFilter = (req, file, cb) => {
 
     if (file.mimetype === 'application/pdf') {
@@ -39,11 +36,9 @@ const fileFilter = (req, file, cb) => {
     }
 };
 
-// No file size limit
 const upload = multer({
     storage,
     fileFilter
 });
 
-// console.log('Uploaded file:', req.file);
 module.exports = upload;
