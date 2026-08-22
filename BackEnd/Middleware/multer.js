@@ -38,14 +38,10 @@ const fileFilter = (req, file, cb) => {
     }
 };
 
-// Multer
+// Multer - No file size limit
 const upload = multer({
     storage,
-    fileFilter,
-    limits: {
-        fileSize:
-            parseInt(process.env.MAX_FILE_SIZE) || 10485760
-    }
+    fileFilter
 });
 
 module.exports = upload;
