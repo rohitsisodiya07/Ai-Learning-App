@@ -34,9 +34,9 @@ const uploadDocument = async (req, res) => {
         }
 
         // Dynamic URL for local and production
-        // const baseUrl = `${req.protocol}://${req.get("host")}`;
+        const baseUrl = process.env.BASE_URL;
 
-        const fileUrl = `${process.env.BASE_URL}/uploads/documents/${req.file.filename}`;
+        const fileUrl = `${baseUrl}/uploads/documents/${req.file.filename}`;
         const document = await documentModel.create({
             userId: req.user._id,
             title: title.trim(),
