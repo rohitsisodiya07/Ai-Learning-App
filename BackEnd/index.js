@@ -44,6 +44,19 @@ app.use("/quiz", quizRoutes);
 app.use("/progress", progressRoutes);
 app.use("/notification", notificationRoutes);
 
+app.get("/", (req, res) => {
+    res.status(200).json({
+        success: true,
+        message: "AI Learning Backend is running"
+    });
+});
+app.get("/ai/test", (req, res) => {
+    res.status(200).json({
+        success: true,
+        message: "AI route is working"
+    });
+});
+
 app.listen(port, () => {
     console.log(`Server is Connected on Port ${port}`);
 });
