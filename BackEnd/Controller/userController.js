@@ -7,7 +7,6 @@ const { createNotification } = require('./notificationController');
 
 const secretKey = process.env.JWT_SECRET;
 
-// Send OTP for Registration
 const sendOTP = async (req, res) => {
     try {
         const { userName, email, password } = req.body;
@@ -42,7 +41,6 @@ const sendOTP = async (req, res) => {
 
         let profileImage = null;
         if (req.file) {
-
             const allowedTypes = [
                 'image/jpeg',
                 'image/jpg',
@@ -119,7 +117,6 @@ const sendOTP = async (req, res) => {
     }
 };
 
-// Verify OTP
 const verifyOTP = async (req, res) => {
     try {
         const { email, otp } = req.body;
@@ -154,7 +151,6 @@ const verifyOTP = async (req, res) => {
     }
 };
 
-// Login User
 const loginUser = async (req, res) => {
     try {
         const { email, password } = req.body;
@@ -183,7 +179,6 @@ const loginUser = async (req, res) => {
     }
 };
 
-// Forgot Password
 const forgotPassword = async (req, res) => {
     try {
         const { email } = req.body;
@@ -231,7 +226,6 @@ const forgotPassword = async (req, res) => {
     }
 };
 
-// Verify Forgot Password OTP
 const verifyForgotOTP = async (req, res) => {
     try {
         const { email, otp } = req.body;
@@ -258,7 +252,6 @@ const verifyForgotOTP = async (req, res) => {
     }
 };
 
-// Reset Password
 const resetPassword = async (req, res) => {
     try {
         const { email, password, confirmPassword } = req.body;
@@ -275,7 +268,6 @@ const resetPassword = async (req, res) => {
         user.otpExpireAt = null;
         await user.save();
 
-        // Send Notification
         await createNotification({
             userId: user._id,
             title: "Password Reset",
@@ -290,7 +282,6 @@ const resetPassword = async (req, res) => {
     }
 };
 
-// Get Profile
 const getProfile = async (req, res) => {
     try {
         if (!req.user || !req.user._id) return res.status(401).json({ success: false, message: "Unauthorized user" });
@@ -316,7 +307,6 @@ const getProfile = async (req, res) => {
     }
 };
 
-// Update Profile
 const updateProfile = async (req, res) => {
     try {
         const { userName, email } = req.body;
@@ -351,7 +341,6 @@ const updateProfile = async (req, res) => {
 
         await user.save();
 
-        // Send Notification
         await createNotification({
             userId: req.user._id,
             title: "Profile Updated",
@@ -377,7 +366,6 @@ const updateProfile = async (req, res) => {
     }
 };
 
-// Change Password
 const changePassword = async (req, res) => {
     try {
         const { currentPassword, newPassword } = req.body;
@@ -395,7 +383,6 @@ const changePassword = async (req, res) => {
         user.password = await bcrypt.hash(newPassword, 10);
         await user.save();
 
-        // Send Notification
         await createNotification({
             userId: req.user._id,
             title: "Password Changed",
@@ -403,7 +390,7 @@ const changePassword = async (req, res) => {
             type: "password"
         });
 
-        return res.status(200).json({ success: true, message: "Password changed successfully" });
+        return res.status(200).json({ success: false, message: "Password changed successfully" });
     } catch (error) {
         console.error("Change Password Error:", error);
         return res.status(500).json({ success: false, message: "Internal server error" });

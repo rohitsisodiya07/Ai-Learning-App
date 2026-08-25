@@ -8,10 +8,31 @@ const flashcardSchema = new mongoose.Schema(
             required: true,
         },
 
+        // Document based flashcards
         documentId: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "Document",
-            required: true,
+            default: null,
+        },
+
+        // Study Plan based flashcards
+        planId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "StudyPlan",
+            default: null,
+        },
+
+        // Which day of the study plan
+        dayNumber: {
+            type: Number,
+            default: null,
+        },
+
+        // Where the flashcards came from
+        sourceType: {
+            type: String,
+            enum: ["document", "study_plan"],
+            default: "document",
         },
 
         cards: [
@@ -56,6 +77,9 @@ const flashcardSchema = new mongoose.Schema(
     }
 );
 
-const flashcardModel = mongoose.model("FlashCard", flashcardSchema);
+const flashcardModel = mongoose.model(
+    "FlashCard",
+    flashcardSchema
+);
 
 module.exports = flashcardModel;

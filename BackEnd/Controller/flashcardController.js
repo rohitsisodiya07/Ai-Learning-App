@@ -2,30 +2,76 @@ const mongoose = require('mongoose');
 const flashcardModel = require('../Model/flashcardModel');
 const { createNotification } = require('../Controller/notificationController');
 
-// Get Flashcards for a specific document
 const getFlashCards = async (req, res) => {
     try {
         const { documentId } = req.params;
 
-        console.log("Document ID:", documentId);
-        console.log("Logged User ID:", req.user._id);
+        const {
+            search = "",
+            sortBy = "createdAt",
+            sortOrder = "desc",
+            page = 1,
+            limit = 6
+        } = req.query;
 
-        const flashcards = await flashcardModel.find({
-            userId: req.user._id,
-            documentId: documentId
-        }).sort({ createdAt: -1 });
+        const pageNumber = Math.max(Number(page), 1);
+        const limitNumber = Math.max(Number(limit), 1);
+        const skip = (pageNumber - 1) * limitNumber;
 
-        console.log("Flashcard Sets Found:", flashcards.length);
+        const filter = {
+            userId: new mongoose.Types.ObjectId(req.user._id),
+            documentId: new mongoose.Types.ObjectId(documentId)
+        };
 
-        if (!flashcards || flashcards.length === 0) {
-            return res.status(200).json({ success: true, data: [] });
+        if (search.trim()) {
+            filter.$or = [
+                { "cards.question": { $regex: search.trim(), $options: "i" } },
+                { "cards.answer": { $regex: search.trim(), $options: "i" } }
+            ];
         }
+
+        const sort = { [sortBy]: sortOrder === "asc" ? 1 : -1 };
+
+        const stats = await flashcardModel.aggregate([
+            { $match: filter },
+            {
+                $group: {
+                    _id: null,
+                    totalSets: { $sum: 1 },
+                    totalCards: {
+                        $sum: {
+                            $cond: [{ $isArray: "$cards" }, { $size: "$cards" }, 0]
+                        }
+                    }
+                }
+            }
+        ]);
+
+        const totalSets = stats.length > 0 ? stats[0].totalSets : 0;
+        const totalCards = stats.length > 0 ? stats[0].totalCards : 0;
+
+        const flashcards = await flashcardModel
+            .find(filter)
+            .sort(sort)
+            .skip(skip)
+            .limit(limitNumber)
+            .lean();
+
+        const totalPages = Math.ceil(totalSets / limitNumber);
 
         return res.status(200).json({
             success: true,
             message: "Flashcards fetched successfully",
-            count: flashcards.length,
-            data: flashcards
+            data: flashcards,
+            totalCards,
+            pagination: {
+                total: totalSets,
+                page: pageNumber,
+                limit: limitNumber,
+                totalPages,
+                hasNextPage: pageNumber < totalPages,
+                hasPrevPage: pageNumber > 1
+            }
         });
     } catch (error) {
         console.error("Get Flashcards Error:", error);
@@ -33,21 +79,58 @@ const getFlashCards = async (req, res) => {
     }
 };
 
-// Get All Flashcards across all documents
 const getAllFlashCards = async (req, res) => {
     try {
+        const { sortBy = "createdAt", sortOrder = "desc", page = 1, limit = 6 } = req.query;
+
+        const pageNumber = Math.max(Number(page), 1);
+        const limitNumber = Math.max(Number(limit), 1);
+        const skip = (pageNumber - 1) * limitNumber;
+
+        const filter = { userId: new mongoose.Types.ObjectId(req.user._id) };
+        const sort = { [sortBy]: sortOrder === "asc" ? 1 : -1 };
+
+        const stats = await flashcardModel.aggregate([
+            { $match: filter },
+            {
+                $group: {
+                    _id: null,
+                    totalSets: { $sum: 1 },
+                    totalCards: {
+                        $sum: {
+                            $cond: [{ $isArray: "$cards" }, { $size: "$cards" }, 0]
+                        }
+                    }
+                }
+            }
+        ]);
+
+        const totalSets = stats.length > 0 ? stats[0].totalSets : 0;
+        const totalCards = stats.length > 0 ? stats[0].totalCards : 0;
+
         const flashcardSets = await flashcardModel
             .find({ userId: req.user._id })
-            .populate('documentId', 'title')
-            .sort({ createdAt: -1 });
+            .populate('documentId', 'title fileName')
+            .sort(sort)
+            .skip(skip)
+            .limit(limitNumber)
+            .lean();
 
-        const totalCards = flashcardSets.reduce((total, set) => total + set.cards.length, 0);
+        const totalPages = Math.ceil(totalSets / limitNumber);
 
         return res.status(200).json({
             success: true,
             message: "Flashcards fetched successfully",
-            count: totalCards,
-            data: flashcardSets
+            data: flashcardSets,
+            totalCards,
+            pagination: {
+                total: totalSets,
+                page: pageNumber,
+                limit: limitNumber,
+                totalPages,
+                hasNextPage: pageNumber < totalPages,
+                hasPrevPage: pageNumber > 1
+            }
         });
     } catch (error) {
         console.error("Get All Flashcards Error:", error);
@@ -55,7 +138,6 @@ const getAllFlashCards = async (req, res) => {
     }
 };
 
-// Review Flashcard
 const reviewFlashCard = async (req, res) => {
     try {
         const { cardId } = req.params;
@@ -63,11 +145,7 @@ const reviewFlashCard = async (req, res) => {
         if (!cardId) return res.status(400).json({ success: false, message: "Card ID is required" });
         if (!mongoose.Types.ObjectId.isValid(cardId)) return res.status(400).json({ success: false, message: "Invalid Card ID" });
 
-        const flashcardSet = await flashcardModel.findOne({
-            "cards._id": cardId,
-            userId: req.user._id
-        });
-
+        const flashcardSet = await flashcardModel.findOne({ "cards._id": cardId, userId: req.user._id });
         if (!flashcardSet) return res.status(404).json({ success: false, message: "Flashcard not found" });
 
         const cardIndex = flashcardSet.cards.findIndex(card => card._id.toString() === cardId);
@@ -89,7 +167,6 @@ const reviewFlashCard = async (req, res) => {
     }
 };
 
-// Toggle Star/Favorite Flashcard
 const toggleStarFlashCard = async (req, res) => {
     try {
         const { cardId } = req.params;
@@ -97,11 +174,7 @@ const toggleStarFlashCard = async (req, res) => {
         if (!cardId) return res.status(400).json({ success: false, message: "Card ID is required" });
         if (!mongoose.Types.ObjectId.isValid(cardId)) return res.status(400).json({ success: false, message: "Invalid Card ID" });
 
-        const flashcardSet = await flashcardModel.findOne({
-            "cards._id": cardId,
-            userId: req.user._id
-        });
-
+        const flashcardSet = await flashcardModel.findOne({ "cards._id": cardId, userId: req.user._id });
         if (!flashcardSet) return res.status(404).json({ success: false, message: "Flashcard not found" });
 
         const cardIndex = flashcardSet.cards.findIndex(card => card._id.toString() === cardId);
@@ -122,7 +195,6 @@ const toggleStarFlashCard = async (req, res) => {
     }
 };
 
-// Delete Flashcard Set
 const deleteFlashCardSet = async (req, res) => {
     try {
         const { documentId } = req.params;
@@ -130,17 +202,12 @@ const deleteFlashCardSet = async (req, res) => {
         if (!documentId) return res.status(400).json({ success: false, message: "Document ID is required" });
         if (!mongoose.Types.ObjectId.isValid(documentId)) return res.status(400).json({ success: false, message: "Invalid Document ID" });
 
-        const flashcardSet = await flashcardModel.findOne({
-            documentId,
-            userId: req.user._id
-        });
-
+        const flashcardSet = await flashcardModel.findOne({ documentId, userId: req.user._id });
         if (!flashcardSet) return res.status(404).json({ success: false, message: "Flashcard Set not found" });
 
         const relatedDocumentId = flashcardSet.documentId;
         await flashcardSet.deleteOne();
 
-        // Create Notification
         await createNotification({
             userId: req.user._id,
             title: "Flashcards Deleted",

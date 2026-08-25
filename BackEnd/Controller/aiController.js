@@ -1,22 +1,34 @@
+const mongoose = require("mongoose");
 const documentModel = require('../Model/documentModel');
 const flashcardModel = require('../Model/flashcardModel');
 const quizModel = require('../Model/quizModel');
 const chatModel = require('../Model/chatHistory');
 const { generateFlashcards, generateQuiz, generateSummary, chatWithContext, explainConcept } = require('../Utilities/geminiService');
 const { findRelevantChunks } = require('../Utilities/textChunker');
-const { createNotification } = require('./notificationController'); // Make sure path is correct
+const { createNotification } = require('./notificationController');
 
-// Generate FlashCards From Documents
 const generateFlashcardsFromDocument = async (req, res) => {
     try {
         const { documentId, count = 10 } = req.body;
 
-        if (!documentId) return res.status(400).json({ success: false, message: "Please provide DocumentId" });
+        if (!documentId) {
+            return res.status(400).json({ success: false, message: "Document ID is required" });
+        }
+        if (!mongoose.Types.ObjectId.isValid(documentId)) {
+            return res.status(400).json({ success: false, message: "Invalid Document ID format" });
+        }
+
+        const parsedCount = parseInt(count, 10);
+        if (isNaN(parsedCount) || parsedCount < 1 || parsedCount > 50) {
+            return res.status(400).json({ success: false, message: "Count must be a valid number between 1 and 50" });
+        }
 
         const document = await documentModel.findOne({ _id: documentId, userId: req.user._id, status: "ready" });
-        if (!document) return res.status(404).json({ success: false, message: "Document not found or not ready" });
+        if (!document) {
+            return res.status(404).json({ success: false, message: "Document not found or not ready" });
+        }
 
-        const cards = await generateFlashcards(document.extractedText, parseInt(count));
+        const cards = await generateFlashcards(document.extractedText, parsedCount);
 
         const flashcardSet = await flashcardModel.create({
             userId: req.user._id,
@@ -30,7 +42,6 @@ const generateFlashcardsFromDocument = async (req, res) => {
             }))
         });
 
-        // Add Notification
         await createNotification({
             userId: req.user._id,
             title: "Flashcards Generated",
@@ -46,32 +57,37 @@ const generateFlashcardsFromDocument = async (req, res) => {
         });
     } catch (error) {
         console.error("Generate Flashcards Error:", error);
-        return res.status(500).json({ success: false, message: error.message });
+        return res.status(500).json({ success: false, message: error.message || "Failed to generate flashcards" });
     }
 };
 
-// Generate Quiz From Documents
 const generateQuizFromDocuments = async (req, res) => {
     try {
         const { documentId, numQuestions = 5, title, questionType = "mixed" } = req.body;
 
         if (!documentId) {
-            return res.status(400).json({ success: false, message: "Please provide DocumentId" });
+            return res.status(400).json({ success: false, message: "Document ID is required" });
+        }
+        if (!mongoose.Types.ObjectId.isValid(documentId)) {
+            return res.status(400).json({ success: false, message: "Invalid Document ID format" });
+        }
+        if (title && typeof title !== 'string') {
+            return res.status(400).json({ success: false, message: "Title must be a valid string" });
+        }
+
+        const allowedTypes = ["mcq", "true_false", "short_answer", "mixed"];
+        if (!allowedTypes.includes(questionType)) {
+            return res.status(400).json({ success: false, message: "Invalid question type provided" });
+        }
+
+        const questionCount = parseInt(numQuestions, 10);
+        if (isNaN(questionCount) || questionCount < 1 || questionCount > 50) {
+            return res.status(400).json({ success: false, message: "Number of questions must be a valid number between 1 and 50" });
         }
 
         const document = await documentModel.findOne({ _id: documentId, userId: req.user._id, status: "ready" });
         if (!document) {
             return res.status(404).json({ success: false, message: "Document not found or not ready" });
-        }
-
-        const allowedTypes = ["mcq", "true_false", "short_answer", "mixed"];
-        if (!allowedTypes.includes(questionType)) {
-            return res.status(400).json({ success: false, message: "Invalid question type" });
-        }
-
-        const questionCount = parseInt(numQuestions);
-        if (isNaN(questionCount) || questionCount < 1 || questionCount > 50) {
-            return res.status(400).json({ success: false, message: "Number of questions must be between 1 and 50" });
         }
 
         const questions = await generateQuiz(document.extractedText, questionCount, questionType);
@@ -109,15 +125,21 @@ const generateQuizFromDocuments = async (req, res) => {
     }
 };
 
-// Generate Document Summary
 const generateDocumentSummary = async (req, res) => {
     try {
         const { documentId } = req.body;
 
-        if (!documentId) return res.status(400).json({ success: false, message: "Please provide DocumentId" });
+        if (!documentId) {
+            return res.status(400).json({ success: false, message: "Document ID is required" });
+        }
+        if (!mongoose.Types.ObjectId.isValid(documentId)) {
+            return res.status(400).json({ success: false, message: "Invalid Document ID format" });
+        }
 
         const document = await documentModel.findOne({ _id: documentId, userId: req.user._id, status: "ready" });
-        if (!document) return res.status(404).json({ success: false, message: "Document not found or not ready" });
+        if (!document) {
+            return res.status(404).json({ success: false, message: "Document not found or not ready" });
+        }
 
         if (!document.extractedText || document.extractedText.trim().length === 0) {
             return res.status(400).json({ success: false, message: "Document does not contain any extracted text" });
@@ -125,7 +147,6 @@ const generateDocumentSummary = async (req, res) => {
 
         const summary = await generateSummary(document.extractedText);
 
-        // Add Notification
         await createNotification({
             userId: req.user._id,
             title: "Summary Generated",
@@ -143,23 +164,35 @@ const generateDocumentSummary = async (req, res) => {
         });
     } catch (error) {
         console.error("Generate Summary Error:", error);
-        return res.status(500).json({ success: false, message: error.message });
+        return res.status(500).json({ success: false, message: error.message || "Failed to generate summary" });
     }
 };
 
-// Chat With Document
 const chat = async (req, res) => {
     try {
         const { documentId, question } = req.body;
 
-        if (!documentId) return res.status(400).json({ success: false, message: "Please provide DocumentId" });
-        if (!question || !question.trim()) return res.status(400).json({ success: false, message: "Please provide a question" });
+        if (!documentId) {
+            return res.status(400).json({ success: false, message: "Document ID is required" });
+        }
+        if (!mongoose.Types.ObjectId.isValid(documentId)) {
+            return res.status(400).json({ success: false, message: "Invalid document ID format" });
+        }
+        if (!question || typeof question !== 'string' || !question.trim()) {
+            return res.status(400).json({ success: false, message: "A valid question string is required" });
+        }
 
-        const document = await documentModel.findOne({ _id: documentId, userId: req.user._id, status: "ready" });
-        if (!document) return res.status(404).json({ success: false, message: "Document not found or not ready" });
+        const document = await documentModel.findOne({ _id: documentId, userId: req.user._id });
+        if (!document) {
+            return res.status(404).json({ success: false, message: "Document not found" });
+        }
+
+        if (document.status !== "ready") {
+            return res.status(400).json({ success: false, message: `Document is not ready. Current status: ${document.status}` });
+        }
 
         if (!document.chunks || document.chunks.length === 0) {
-            return res.status(400).json({ success: false, message: "Document does not have any text chunks" });
+            return res.status(400).json({ success: false, message: "Document does not contain any text chunks" });
         }
 
         const relevantChunks = findRelevantChunks(document.chunks, question, 3);
@@ -167,10 +200,14 @@ const chat = async (req, res) => {
 
         let chatHistory = await chatModel.findOne({ userId: req.user._id, documentId: document._id });
         if (!chatHistory) {
-            chatHistory = await chatModel.create({ userId: req.user._id, documentId: document._id, messages: [] });
+            chatHistory = await chatModel.create({
+                userId: req.user._id,
+                documentId: document._id,
+                messages: []
+            });
         }
 
-        const answer = await chatWithContext(question, relevantChunks);
+        const answer = await chatWithContext(question.trim(), relevantChunks);
 
         chatHistory.messages.push({
             role: "user",
@@ -199,20 +236,28 @@ const chat = async (req, res) => {
         });
     } catch (error) {
         console.error("Chat Error:", error);
-        return res.status(500).json({ success: false, message: error.message });
+        return res.status(500).json({ success: false, message: "Failed to process chat request", error: error.message });
     }
 };
 
-// Explain Concept From Document
 const explainDocumentConcept = async (req, res) => {
     try {
         const { documentId, concept } = req.body;
 
-        if (!documentId) return res.status(400).json({ success: false, message: "Please provide DocumentId" });
-        if (!concept || !concept.trim()) return res.status(400).json({ success: false, message: "Please provide a concept" });
+        if (!documentId) {
+            return res.status(400).json({ success: false, message: "Document ID is required" });
+        }
+        if (!mongoose.Types.ObjectId.isValid(documentId)) {
+            return res.status(400).json({ success: false, message: "Invalid Document ID format" });
+        }
+        if (!concept || typeof concept !== 'string' || !concept.trim()) {
+            return res.status(400).json({ success: false, message: "A valid concept string is required" });
+        }
 
         const document = await documentModel.findOne({ _id: documentId, userId: req.user._id, status: "ready" });
-        if (!document) return res.status(404).json({ success: false, message: "Document not found or not ready" });
+        if (!document) {
+            return res.status(404).json({ success: false, message: "Document not found or not ready" });
+        }
 
         if (!document.chunks || document.chunks.length === 0) {
             return res.status(400).json({ success: false, message: "Document does not contain any text chunks" });
@@ -237,15 +282,20 @@ const explainDocumentConcept = async (req, res) => {
         });
     } catch (error) {
         console.error("Explain Concept Error:", error);
-        return res.status(500).json({ success: false, message: error.message });
+        return res.status(500).json({ success: false, message: error.message || "Failed to explain concept" });
     }
 };
 
-// Get Chat History
 const getChatHistory = async (req, res) => {
     try {
         const { documentId } = req.params;
-        if (!documentId) return res.status(400).json({ success: false, message: "Document ID is required" });
+
+        if (!documentId) {
+            return res.status(400).json({ success: false, message: "Document ID is required" });
+        }
+        if (!mongoose.Types.ObjectId.isValid(documentId)) {
+            return res.status(400).json({ success: false, message: "Invalid Document ID format" });
+        }
 
         const chatHistory = await chatModel
             .findOne({ userId: req.user._id, documentId: documentId })

@@ -23,6 +23,13 @@ import NotFoundPage from "./Pages/NotFoundPage";
 import QuizTakePage from "./Components/Quizzes/QuizTakePage";
 import QuizResultPage from "./Components/Quizzes/QuizResultPage";
 
+import StudyPlan from "./Components/StudyPlan/StudyPlan";
+import CreateStudyPlan from "./Components/StudyPlan/CreateStudyPlan";
+import StudyPlanDetails from "./Components/StudyPlan/StudyPlanDetails";
+import StudyPlanQuiz from "./Components/StudyPlan/StudyPlanQuiz";
+import StudyPlanFlashcards from "./Components/StudyPlan/StudyPlanFlashcards";
+import StudyDashboard from "./Components/StudyPlan/StudyDashboard";
+
 function App() {
   return (
     <BrowserRouter>
@@ -62,8 +69,26 @@ function App() {
             <Route path="/quiz/:quizId" element={<QuizTakePage />} />
             <Route path="/quiz/:quizId/results" element={<QuizResultPage />} />
 
+            <Route
+              path="/studyPlan/quiz/:quizId/results"
+              element={<QuizResultPage />}
+            />
+
             {/* PROFILE */}
             <Route path="/profile" element={<ProfilePage />} />
+
+            {/* Study Plan */}
+            <Route path="/studyPlan" element={<StudyPlan />} />
+
+            <Route path="/studyPlan/generate" element={<CreateStudyPlan />} />
+
+            <Route path="/studyPlan/:id" element={<StudyPlanDetails />} />
+
+            <Route path="/studyPlan/:planId/day/:dayNumber/quiz" element={<StudyPlanQuiz />} />
+
+            <Route path="/studyPlan/:planId/day/:dayNumber/flashcards" element={<StudyPlanFlashcards />} />
+
+            <Route path="/studyDashboard" element={<StudyDashboard />} />
 
           </Route>
         </Route>

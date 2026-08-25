@@ -7,7 +7,6 @@ const ProtectedRoute = () => {
     const [isAuthenticated, setIsAuthenticated] = useState(false);
 
     useEffect(() => {
-        // Thoda sa buffer time ya turant localStorage check
         const token = localStorage.getItem("token");
         if (token && token !== "undefined" && token !== "null") {
             setIsAuthenticated(true);
@@ -17,7 +16,6 @@ const ProtectedRoute = () => {
         setIsChecking(false);
     }, []);
 
-    // Jab tak background check chal raha hai, blank login page par bhejne ki jagah loader dikhayein
     if (isChecking) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-[#f8f9fc]">

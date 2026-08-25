@@ -1,6 +1,6 @@
 const multer = require('multer');
 
-const storage = multer.memoryStorage(); // 👈 Disk ki jagah memory storage
+const storage = multer.memoryStorage();
 
 const fileFilter = (req, file, cb) => {
     if (file.mimetype === 'application/pdf') {

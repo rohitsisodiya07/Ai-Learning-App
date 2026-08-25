@@ -91,9 +91,6 @@ const chunkText = (text, chunkSize = 500, overlap = 50) => {
     return chunks;
 };
 
-/**
- * Escape special characters before using text in RegExp
- */
 const escapeRegex = (text) => {
     return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 };

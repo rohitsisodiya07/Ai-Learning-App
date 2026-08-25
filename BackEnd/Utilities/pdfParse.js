@@ -1,15 +1,15 @@
-const fs = require('fs');
-const { PDFParse } = require('pdf-parse');
+const { PDFParse } = require("pdf-parse");
 
-// Extract Text From PDF
-const extractTextFromPDF = async (filePath) => {
+const extractTextFromPDF = async (fileBuffer) => {
     let parser;
 
     try {
-        const dataBuffer = await fs.promises.readFile(filePath);
+        if (!Buffer.isBuffer(fileBuffer)) {
+            throw new Error("Invalid PDF buffer");
+        }
 
         parser = new PDFParse({
-            data: dataBuffer
+            data: fileBuffer
         });
 
         const data = await parser.getText();
@@ -26,7 +26,9 @@ const extractTextFromPDF = async (filePath) => {
 
     } catch (error) {
         console.error("PDF parsing error:", error);
-        throw new Error(error.message || "Failed to extract text from PDF");
+        throw new Error(
+            error.message || "Failed to extract text from PDF"
+        );
     } finally {
         if (parser) {
             await parser.destroy();

@@ -1,7 +1,6 @@
 const mongoose = require("mongoose");
 const notificationModel = require("../Model/notificationModel");
 
-// Create Notification (Internal Helper)
 const createNotification = async ({ userId, title, message, type = "system", relatedId = null }) => {
     try {
         if (!userId || !title || !message) {
@@ -24,7 +23,6 @@ const createNotification = async ({ userId, title, message, type = "system", rel
     }
 };
 
-// Get Notifications for Logged-in User
 const getNotifications = async (req, res) => {
     try {
         if (!req.user || !req.user._id) {
@@ -54,7 +52,6 @@ const getNotifications = async (req, res) => {
     }
 };
 
-// Mark Single Notification as Read
 const markAsRead = async (req, res) => {
     try {
         const { id } = req.params;
@@ -83,7 +80,6 @@ const markAsRead = async (req, res) => {
     }
 };
 
-// Mark All Notifications as Read
 const markAllAsRead = async (req, res) => {
     try {
         if (!req.user || !req.user._id) {

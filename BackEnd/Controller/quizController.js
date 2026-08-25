@@ -2,7 +2,6 @@ const mongoose = require("mongoose");
 const quizModel = require("../Model/quizModel");
 const { createNotification } = require('../Controller/notificationController');
 
-// Get All Quizzes for a Document
 const getQuizzes = async (req, res) => {
     try {
         const { documentId } = req.params;
@@ -10,16 +9,79 @@ const getQuizzes = async (req, res) => {
         if (!documentId) return res.status(400).json({ success: false, message: "Document ID is required" });
         if (!mongoose.Types.ObjectId.isValid(documentId)) return res.status(400).json({ success: false, message: "Invalid Document ID" });
 
+        const {
+            search = "",
+            sortBy = "createdAt",
+            sortOrder = "desc",
+            page = 1,
+            limit = 6
+        } = req.query;
+
+        const pageNumber = Math.max(Number(page), 1);
+        const limitNumber = Math.max(Number(limit), 1);
+        const skip = (pageNumber - 1) * limitNumber;
+
+        const filter = {
+            userId: new mongoose.Types.ObjectId(req.user._id),
+            documentId: new mongoose.Types.ObjectId(documentId)
+        };
+
+        if (search.trim()) {
+            filter.title = {
+                $regex: search.trim(),
+                $options: "i"
+            };
+        }
+
+        const sort = {
+            [sortBy]: sortOrder === "asc" ? 1 : -1
+        };
+
+        const stats = await quizModel.aggregate([
+            { $match: filter },
+            {
+                $group: {
+                    _id: null,
+                    totalQuizzes: { $sum: 1 },
+                    totalQuestions: {
+                        $sum: {
+                            $cond: [
+                                { $isArray: "$questions" },
+                                { $size: "$questions" },
+                                { $ifNull: ["$totalQuestions", 0] }
+                            ]
+                        }
+                    }
+                }
+            }
+        ]);
+
+        const totalQuizzes = stats.length > 0 ? stats[0].totalQuizzes : 0;
+        const totalQuestions = stats.length > 0 ? stats[0].totalQuestions : 0;
+
         const quizzes = await quizModel
-            .find({ userId: req.user._id, documentId: documentId })
+            .find(filter)
             .populate("documentId", "title fileName")
-            .sort({ createdAt: -1 });
+            .sort(sort)
+            .skip(skip)
+            .limit(limitNumber)
+            .lean();
+
+        const totalPages = Math.ceil(totalQuizzes / limitNumber);
 
         return res.status(200).json({
             success: true,
             message: "Quizzes fetched successfully",
-            count: quizzes.length,
-            data: quizzes
+            data: quizzes,
+            totalQuestions,
+            pagination: {
+                total: totalQuizzes,
+                page: pageNumber,
+                limit: limitNumber,
+                totalPages,
+                hasNextPage: pageNumber < totalPages,
+                hasPrevPage: pageNumber > 1
+            }
         });
     } catch (error) {
         console.error("Get Quizzes Error:", error);
@@ -27,7 +89,6 @@ const getQuizzes = async (req, res) => {
     }
 };
 
-// Get Quiz By ID
 const getQuizId = async (req, res) => {
     try {
         const { id } = req.params;
@@ -48,7 +109,6 @@ const getQuizId = async (req, res) => {
     }
 };
 
-// Submit Quiz
 const submitQuiz = async (req, res) => {
     try {
         const { id } = req.params;
@@ -107,14 +167,7 @@ const submitQuiz = async (req, res) => {
             const normalizedSelected = normalizeAnswer(selectedAnswer);
             const normalizedCorrect = normalizeAnswer(cleanedCorrectAnswer);
 
-            let isCorrect = false;
-
-            // FIX: Using question.questionType instead of question.type
-            if (question.questionType === "mcq" || question.questionType === "true_false" || question.questionType === "short_answer") {
-                isCorrect = normalizedSelected === normalizedCorrect;
-            } else {
-                isCorrect = normalizedSelected === normalizedCorrect;
-            }
+            let isCorrect = normalizedSelected === normalizedCorrect;
 
             if (isCorrect) correctCount++;
 
@@ -153,7 +206,6 @@ const submitQuiz = async (req, res) => {
     }
 };
 
-// Get Quiz Results
 const getQuizResults = async (req, res) => {
     try {
         const { id } = req.params;
@@ -174,7 +226,6 @@ const getQuizResults = async (req, res) => {
 
             return {
                 questionIndex: index,
-                // FIX: mapping questionType to type for frontend compatibility
                 type: question.questionType,
                 question: question.question,
                 options: question.options,
@@ -209,7 +260,6 @@ const getQuizResults = async (req, res) => {
     }
 };
 
-// Delete Quiz
 const deleteQuiz = async (req, res) => {
     try {
         const { id } = req.params;

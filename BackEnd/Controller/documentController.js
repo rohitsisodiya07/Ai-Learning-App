@@ -1,15 +1,14 @@
+const mongoose = require("mongoose");
 const documentModel = require('../Model/documentModel');
 const flashcardModel = require('../Model/flashcardModel');
 const quizModel = require('../Model/quizModel');
 const chatModel = require('../Model/chatHistory');
 const { extractTextFromPDF } = require('../Utilities/pdfParse');
 const { chunkText } = require('../Utilities/textChunker');
-const mongoose = require('mongoose');
 const path = require('path');
 const { createNotification } = require('../Controller/notificationController');
-const cloudinary = require('../Utilities/cloudnary'); // Aapki cloudinary config
+const cloudinary = require('../Utilities/cloudnary');
 
-// Helper function to upload buffer to Cloudinary using stream
 const uploadToCloudinary = (fileBuffer, originalName) => {
     return new Promise((resolve, reject) => {
         const stream = cloudinary.uploader.upload_stream(
@@ -28,7 +27,7 @@ const uploadToCloudinary = (fileBuffer, originalName) => {
 };
 
 const uploadDocument = async (req, res) => {
-    console.log("🔥 UPLOAD DOCUMENT CONTROLLER HIT");
+    console.log("UPLOAD DOCUMENT CONTROLLER HIT");
 
     try {
         if (!req.file) {
@@ -49,7 +48,6 @@ const uploadDocument = async (req, res) => {
             });
         }
 
-        // 1. Upload PDF buffer directly to Cloudinary
         const cloudinaryResult = await uploadToCloudinary(req.file.buffer, req.file.originalname);
         const fileUrl = cloudinaryResult.secure_url;
 
@@ -57,12 +55,11 @@ const uploadDocument = async (req, res) => {
             userId: req.user._id,
             title: title.trim(),
             fileName: req.file.originalname,
-            filePath: fileUrl, // 👈 Permanent Cloudinary URL
+            filePath: fileUrl,
             fileSize: req.file.size,
             status: "processing"
         });
 
-        // Upload Notification
         await createNotification({
             userId: req.user._id,
             title: "Document Uploaded",
@@ -71,10 +68,7 @@ const uploadDocument = async (req, res) => {
             relatedId: document._id
         });
 
-        // Note: For pdfParse library, if it requires a physical file path, 
-        // you can pass the cloudinary URL directly or use pdf-parse with buffer if supported.
-        // Assuming extractTextFromPDF can handle remote URLs or buffers, or we pass fileUrl.
-        processPDF(document._id, fileUrl).catch(error => {
+        processPDF(document._id, req.file.buffer).catch(error => {
             console.error("PDF Processing Error:", error);
         });
 
@@ -92,7 +86,6 @@ const uploadDocument = async (req, res) => {
 
     } catch (error) {
         console.error("Upload Document Error:", error);
-
         return res.status(500).json({
             success: false,
             message: error.message || "Failed to upload document"
@@ -100,10 +93,9 @@ const uploadDocument = async (req, res) => {
     }
 };
 
-// Helper Function to Process PDF
-const processPDF = async (documentId, filePath) => {
+const processPDF = async (documentId, fileBuffer) => {
     try {
-        const { text } = await extractTextFromPDF(filePath);
+        const { text } = await extractTextFromPDF(fileBuffer);
         const chunks = chunkText(text, 500, 50);
 
         const document = await documentModel.findByIdAndUpdate(
@@ -144,28 +136,177 @@ const processPDF = async (documentId, filePath) => {
     }
 };
 
-// Get All Documents
 const getDocuments = async (req, res) => {
     try {
+        const {
+            search = "",
+            sortBy = "newest",
+            page = 1,
+            limit = 10,
+        } = req.query;
+
+        const pageNumber = Math.max(Number(page), 1);
+        const limitNumber = Math.min(Math.max(Number(limit), 1), 100);
+        const skip = (pageNumber - 1) * limitNumber;
+        const userId = new mongoose.Types.ObjectId(req.user._id);
+
+        const matchStage = { userId };
+
+        if (search.trim()) {
+            matchStage.title = {
+                $regex: search.trim(),
+                $options: "i",
+            };
+        }
+
+        let sortStage = {};
+        if (sortBy === "oldest") {
+            sortStage = { createdAt: 1 };
+        } else if (sortBy === "name") {
+            sortStage = { title: 1 };
+        } else {
+            sortStage = { createdAt: -1 };
+        }
+
+        const total = await documentModel.countDocuments(matchStage);
+
         const documents = await documentModel.aggregate([
-            { $match: { userId: new mongoose.Types.ObjectId(req.user._id) } },
-            { $lookup: { from: "flashcards", localField: "_id", foreignField: "documentId", as: "flashcardSets" } },
-            { $lookup: { from: "quizzes", localField: "_id", foreignField: "documentId", as: "quizzes" } },
-            { $addFields: { flashcardCount: { $size: "$flashcardSets" }, quizCount: { $size: "$quizzes" } } },
-            { $project: { extractedText: 0, chunks: 0, flashcardSets: 0, quizzes: 0 } },
-            { $sort: { uploadDate: -1 } }
+            { $match: matchStage },
+            {
+                $lookup: {
+                    from: "flashcards",
+                    localField: "_id",
+                    foreignField: "documentId",
+                    as: "flashcardSets",
+                },
+            },
+            {
+                $lookup: {
+                    from: "quizzes",
+                    localField: "_id",
+                    foreignField: "documentId",
+                    as: "quizzes",
+                },
+            },
+            {
+                $addFields: {
+                    flashcardCount: {
+                        $reduce: {
+                            input: "$flashcardSets",
+                            initialValue: 0,
+                            in: {
+                                $add: [
+                                    "$$value",
+                                    {
+                                        $cond: [
+                                            { $isArray: "$$this.cards" },
+                                            { $size: "$$this.cards" },
+                                            0
+                                        ]
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    quizCount: { $size: "$quizzes" },
+                },
+            },
+            {
+                $project: {
+                    extractedText: 0,
+                    chunks: 0,
+                    flashcardSets: 0,
+                    quizzes: 0,
+                },
+            },
+            { $sort: sortStage },
+            { $skip: skip },
+            { $limit: limitNumber },
         ]);
 
-        return res.status(200).json({ success: true, count: documents.length, data: documents });
+        const statsResult = await documentModel.aggregate([
+            { $match: { userId } },
+            {
+                $lookup: {
+                    from: "flashcards",
+                    localField: "_id",
+                    foreignField: "documentId",
+                    as: "flashcards",
+                },
+            },
+            {
+                $lookup: {
+                    from: "quizzes",
+                    localField: "_id",
+                    foreignField: "documentId",
+                    as: "quizzes",
+                },
+            },
+            {
+                $group: {
+                    _id: null,
+                    totalDocuments: { $sum: 1 },
+                    totalFlashcards: {
+                        $sum: {
+                            $reduce: {
+                                input: "$flashcards",
+                                initialValue: 0,
+                                in: {
+                                    $add: [
+                                        "$$value",
+                                        {
+                                            $cond: [
+                                                { $isArray: "$$this.cards" },
+                                                { $size: "$$this.cards" },
+                                                0
+                                            ]
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    totalQuizzes: { $sum: { $size: "$quizzes" } },
+                    totalStorage: { $sum: { $ifNull: ["$fileSize", 0] } },
+                },
+            },
+        ]);
+
+        const stats = statsResult[0] || {
+            totalDocuments: 0,
+            totalFlashcards: 0,
+            totalQuizzes: 0,
+            totalStorage: 0,
+        };
+
+        const totalPages = Math.ceil(total / limitNumber);
+
+        return res.status(200).json({
+            success: true,
+            data: documents,
+            pagination: {
+                total,
+                page: pageNumber,
+                limit: limitNumber,
+                totalPages,
+            },
+            stats,
+        });
     } catch (error) {
         console.error("Get Documents Error:", error);
-        return res.status(500).json({ success: false, message: "Failed to fetch documents" });
+        return res.status(500).json({
+            success: false,
+            message: "Failed to fetch documents",
+        });
     }
 };
 
-// Get Single Document With Counts
 const getSingleDocument = async (req, res) => {
     try {
+        if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(400).json({ success: false, message: "Invalid Document ID" });
+        }
+
         const document = await documentModel.findOne({ _id: req.params.id, userId: req.user._id });
         if (!document) return res.status(404).json({ success: false, message: "Document Not Found" });
 
@@ -188,7 +329,6 @@ const getSingleDocument = async (req, res) => {
     }
 };
 
-// Delete Document
 const deleteDocument = async (req, res) => {
     try {
         const { id } = req.params;
@@ -197,9 +337,6 @@ const deleteDocument = async (req, res) => {
 
         const document = await documentModel.findOne({ _id: id, userId: req.user._id });
         if (!document) return res.status(404).json({ success: false, message: "Document Not Found" });
-
-        // Optional: Cloudinary se bhi file delete karne ka code yahan likh sakte hain agar public_id extract karein
-        // Lekin filhal database aur related models clean kar rahe hain
 
         await Promise.all([
             flashcardModel.deleteMany({ documentId: document._id, userId: req.user._id }),
@@ -224,7 +361,6 @@ const deleteDocument = async (req, res) => {
     }
 };
 
-// Update Document
 const updateDocument = async (req, res) => {
     try {
         const { id } = req.params;

@@ -35,6 +35,8 @@ const aiRoutes = require("./Routes/aiRoutes");
 const quizRoutes = require("./Routes/quizRoutes");
 const progressRoutes = require("./Routes/progressRoutes");
 const notificationRoutes = require('./Routes/notificationRoute')
+const studyPlanRoutes = require('./Routes/studyPlanRoutes')
+
 
 app.use("/user", userRoutes);
 app.use("/document", documentRoutes);
@@ -43,19 +45,7 @@ app.use("/ai", aiRoutes);
 app.use("/quiz", quizRoutes);
 app.use("/progress", progressRoutes);
 app.use("/notification", notificationRoutes);
-
-app.get("/", (req, res) => {
-    res.status(200).json({
-        success: true,
-        message: "AI Learning Backend is running"
-    });
-});
-app.get("/ai/test", (req, res) => {
-    res.status(200).json({
-        success: true,
-        message: "AI route is working"
-    });
-});
+app.use("/studyPlan", studyPlanRoutes);
 
 app.listen(port, () => {
     console.log(`Server is Connected on Port ${port}`);

@@ -29,7 +29,9 @@ const Header = ({ toggleSidebar }) => {
     const notificationRef = useRef(null);
     const token = localStorage.getItem("token");
 
-    // Get Profile
+    // =========================================================
+    // GET PROFILE
+    // =========================================================
     const getProfile = async () => {
         try {
             if (!token) return;
@@ -55,7 +57,9 @@ const Header = ({ toggleSidebar }) => {
         }
     };
 
-    // Get Notifications
+    // =========================================================
+    // GET NOTIFICATIONS
+    // =========================================================
     const getNotifications = async () => {
         try {
             if (!token) return;
@@ -75,7 +79,9 @@ const Header = ({ toggleSidebar }) => {
         }
     };
 
-    // Initial Load
+    // =========================================================
+    // INITIAL LOAD & POLLING
+    // =========================================================
     useEffect(() => {
         if (!token) return;
         getProfile();
@@ -104,7 +110,9 @@ const Header = ({ toggleSidebar }) => {
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
-    // Mark Single Notification as Read
+    // =========================================================
+    // NOTIFICATION ACTIONS
+    // =========================================================
     const markAsRead = async (notification) => {
         if (notification.isRead) return;
         try {
@@ -121,7 +129,6 @@ const Header = ({ toggleSidebar }) => {
         }
     };
 
-    // Mark All as Read
     const markAllAsRead = async () => {
         if (unreadCount === 0) return;
         try {
@@ -136,7 +143,9 @@ const Header = ({ toggleSidebar }) => {
         }
     };
 
-    // Notification Icon Helper
+    // =========================================================
+    // HELPERS
+    // =========================================================
     const getNotificationIcon = (type) => {
         switch (type) {
             case "document": return <FileText size={17} />;
@@ -149,7 +158,6 @@ const Header = ({ toggleSidebar }) => {
         }
     };
 
-    // Format Time Helper
     const formatTime = (date) => {
         if (!date) return "";
         const notificationDate = new Date(date);
@@ -164,7 +172,6 @@ const Header = ({ toggleSidebar }) => {
         return notificationDate.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
     };
 
-    // Profile Image Helper
     const getProfileImage = () => {
         if (!user?.profileImage) return null;
         if (user.profileImage.startsWith("http")) return user.profileImage;
@@ -177,64 +184,70 @@ const Header = ({ toggleSidebar }) => {
         navigate("/profile");
     };
 
+    // =========================================================
+    // RENDER
+    // =========================================================
     return (
-        <header className="w-full h-[80px] bg-white border-b border-gray-200 px-4 md:px-8 flex items-center justify-between shrink-0">
+        <header className="sticky top-0 z-40 w-full h-[80px] bg-white/95 backdrop-blur-md border-b border-slate-200 px-4 md:px-8 flex items-center justify-between shrink-0">
 
-            {/* Left: Sidebar Toggle */}
+            {/* Left: Sidebar Toggle (Mobile) */}
             <div>
                 <button
                     onClick={toggleSidebar}
-                    className="md:hidden flex items-center justify-center w-11 h-11 text-gray-600 hover:bg-gray-100 rounded-lg transition"
+                    className="md:hidden flex items-center justify-center w-10 h-10 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors"
                 >
-                    <Menu size={26} />
+                    <Menu size={24} strokeWidth={2.5} />
                 </button>
             </div>
 
             {/* Right: Notifications & Profile */}
             <div className="flex items-center h-full">
 
-                {/* Notification Wrapper */}
+                {/* =========================================
+                    NOTIFICATION WRAPPER
+                ========================================= */}
                 <div ref={notificationRef} className="relative">
                     <button
                         onClick={() => {
                             setShowNotifications((prev) => !prev);
                             if (!showNotifications) getNotifications();
                         }}
-                        className="relative p-2.5 text-gray-600 hover:bg-gray-100 rounded-full transition mr-3"
+                        className="relative flex items-center justify-center w-10 h-10 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors mr-3"
                     >
-                        <Bell size={24} />
+                        <Bell size={22} strokeWidth={2} />
                         {unreadCount > 0 && (
-                            <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 flex items-center justify-center bg-red-500 text-white text-[10px] font-bold rounded-full border-2 border-white">
+                            <span className="absolute top-1 right-1.5 min-w-[18px] h-[18px] px-1 flex items-center justify-center bg-rose-500 text-white text-[10px] font-bold rounded-full border-2 border-white shadow-sm">
                                 {unreadCount > 99 ? "99+" : unreadCount}
                             </span>
                         )}
                     </button>
 
-                    {/* Notification Dropdown */}
+                    {/* Dropdown Panel */}
                     {showNotifications && (
-                        <div className="absolute right-0 top-[58px] w-[380px] max-w-[calc(100vw-32px)] bg-white border border-gray-200 rounded-2xl shadow-2xl z-[100] overflow-hidden">
+                        <div className="absolute right-0 top-[52px] w-[380px] max-w-[calc(100vw-32px)] bg-white border border-slate-200 rounded-2xl shadow-xl shadow-slate-200/50 z-[100] overflow-hidden transform origin-top-right transition-all">
 
                             {/* Dropdown Header */}
-                            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+                            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-slate-50/50">
                                 <div>
-                                    <h3 className="font-bold text-gray-900">Notifications</h3>
-                                    <p className="text-xs text-gray-500 mt-0.5">
+                                    <h3 className="text-[15px] font-bold text-slate-900">Notifications</h3>
+                                    <p className="text-xs font-medium text-slate-500 mt-0.5">
                                         {unreadCount > 0 ? `${unreadCount} unread notification${unreadCount > 1 ? "s" : ""}` : "You're all caught up"}
                                     </p>
                                 </div>
 
-                                <div className="flex items-center gap-1">
+                                <div className="flex items-center gap-2">
                                     {unreadCount > 0 && (
                                         <button
                                             onClick={markAllAsRead}
-                                            className="flex items-center gap-1.5 text-xs font-medium text-[#19b673] hover:bg-emerald-50 px-2.5 py-2 rounded-lg transition"
+                                            className="group flex items-center gap-1.5 text-xs font-bold text-[#19b673] hover:bg-[#19b673]/10 px-3 py-2 rounded-lg transition-colors"
                                         >
-                                            <CheckCheck size={15} /> Mark all
+                                            <CheckCheck size={15} className="group-hover:scale-110 transition-transform" />
+                                            Mark all
                                         </button>
                                     )}
                                     <button
                                         onClick={() => setShowNotifications(false)}
-                                        className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg"
+                                        className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200/50 rounded-lg transition-colors"
                                     >
                                         <X size={16} />
                                     </button>
@@ -242,68 +255,90 @@ const Header = ({ toggleSidebar }) => {
                             </div>
 
                             {/* Notification List */}
-                            <div className="max-h-[420px] overflow-y-auto">
+                            <div className="max-h-[420px] overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-200">
                                 {loadingNotifications ? (
                                     <div className="py-12 text-center">
-                                        <div className="w-7 h-7 border-2 border-gray-200 border-t-[#19b673] rounded-full animate-spin mx-auto"></div>
-                                        <p className="text-sm text-gray-500 mt-3">Loading notifications...</p>
+                                        <div className="w-8 h-8 border-2 border-slate-200 border-t-[#19b673] rounded-full animate-spin mx-auto"></div>
+                                        <p className="text-sm font-medium text-slate-500 mt-3">Loading notifications...</p>
                                     </div>
                                 ) : notifications.length === 0 ? (
                                     <div className="py-12 px-6 text-center">
-                                        <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto">
-                                            <Bell size={22} className="text-gray-400" />
+                                        <div className="w-14 h-14 bg-slate-50 border border-slate-100 rounded-full flex items-center justify-center mx-auto shadow-sm">
+                                            <Bell size={24} className="text-slate-400" />
                                         </div>
-                                        <h4 className="font-semibold text-gray-800 mt-4">No notifications</h4>
-                                        <p className="text-xs text-gray-500 mt-1">You're all caught up!</p>
+                                        <h4 className="font-bold text-slate-800 mt-4">No notifications</h4>
+                                        <p className="text-xs font-medium text-slate-500 mt-1">You don't have any notifications right now.</p>
                                     </div>
                                 ) : (
-                                    notifications.map((notification) => (
-                                        <button
-                                            key={notification._id}
-                                            onClick={() => markAsRead(notification)}
-                                            className={`w-full text-left px-5 py-4 border-b border-gray-100 transition hover:bg-gray-50 ${!notification.isRead ? "bg-emerald-50/60" : "bg-white"
-                                                }`}
-                                        >
-                                            <div className="flex gap-3">
-                                                <div className={`w-9 h-9 shrink-0 rounded-xl flex items-center justify-center ${!notification.isRead ? "bg-emerald-100 text-[#19b673]" : "bg-gray-100 text-gray-500"
-                                                    }`}>
-                                                    {getNotificationIcon(notification.type)}
-                                                </div>
+                                    <div className="divide-y divide-slate-100">
+                                        {notifications.map((notification) => (
+                                            <button
+                                                key={notification._id}
+                                                onClick={() => markAsRead(notification)}
+                                                className={`w-full text-left px-5 py-4 transition-colors hover:bg-slate-50 relative overflow-hidden group ${!notification.isRead ? "bg-[#19b673]/5" : "bg-white"
+                                                    }`}
+                                            >
+                                                {!notification.isRead && (
+                                                    <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-[#19b673]" />
+                                                )}
 
-                                                <div className="min-w-0 flex-1">
-                                                    <div className="flex items-start justify-between gap-2">
-                                                        <h4 className={`text-sm ${!notification.isRead ? "font-bold text-gray-900" : "font-medium text-gray-700"}`}>
-                                                            {notification.title}
-                                                        </h4>
-                                                        {!notification.isRead && (
-                                                            <span className="w-2 h-2 shrink-0 bg-[#19b673] rounded-full mt-1.5"></span>
-                                                        )}
+                                                <div className="flex gap-4">
+                                                    <div className={`w-10 h-10 shrink-0 rounded-xl flex items-center justify-center transition-colors ${!notification.isRead ? "bg-white shadow-sm text-[#19b673]" : "bg-slate-100 text-slate-500 group-hover:bg-white group-hover:shadow-sm"
+                                                        }`}>
+                                                        {getNotificationIcon(notification.type)}
                                                     </div>
-                                                    <p className="text-xs text-gray-500 mt-1 leading-5">{notification.message}</p>
-                                                    <p className="text-[11px] text-gray-400 mt-2">{formatTime(notification.createdAt)}</p>
+
+                                                    <div className="min-w-0 flex-1">
+                                                        <div className="flex items-start justify-between gap-2">
+                                                            <h4 className={`text-sm pr-2 ${!notification.isRead ? "font-bold text-slate-900" : "font-semibold text-slate-700"}`}>
+                                                                {notification.title}
+                                                            </h4>
+                                                            {!notification.isRead && (
+                                                                <span className="w-2 h-2 shrink-0 bg-[#19b673] rounded-full mt-1.5 shadow-sm"></span>
+                                                            )}
+                                                        </div>
+                                                        <p className={`text-[13px] mt-1 leading-5 line-clamp-2 ${!notification.isRead ? "text-slate-600" : "text-slate-500"}`}>
+                                                            {notification.message}
+                                                        </p>
+                                                        <p className="text-[11px] font-semibold text-slate-400 mt-2 uppercase tracking-wider">
+                                                            {formatTime(notification.createdAt)}
+                                                        </p>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        </button>
-                                    ))
+                                            </button>
+                                        ))}
+                                    </div>
                                 )}
                             </div>
                         </div>
                     )}
                 </div>
 
-                <div className="h-9 w-[1px] bg-gray-200 mx-2"></div>
+                {/* Subtle Divider */}
+                <div className="h-8 w-[1px] bg-slate-200 mx-1"></div>
 
-                {/* User Profile Button */}
+                {/* =========================================
+                    USER PROFILE BUTTON
+                ========================================= */}
                 <button
                     onClick={openProfile}
-                    className="flex items-center gap-3 pl-4 text-left hover:bg-gray-50 rounded-xl px-2 py-2 transition cursor-pointer"
+                    className="flex items-center gap-3 pl-3 pr-2 py-1.5 rounded-2xl hover:bg-slate-100 transition-colors ml-1"
                     title="Open Profile"
                 >
+                    <div className="hidden sm:block text-right">
+                        <p className="font-bold text-slate-900 text-[14px] leading-tight">
+                            {user?.userName || "User"}
+                        </p>
+                        <p className="text-slate-500 font-medium text-[12px]">
+                            {user?.email || "user@example.com"}
+                        </p>
+                    </div>
+
                     {profileImage ? (
                         <img
                             src={profileImage}
                             alt="Profile"
-                            className="w-11 h-11 rounded-xl object-cover border border-gray-200"
+                            className="w-10 h-10 rounded-xl object-cover border border-slate-200 shadow-sm"
                             onError={(e) => {
                                 e.currentTarget.style.display = "none";
                                 if (e.currentTarget.nextSibling) {
@@ -315,14 +350,9 @@ const Header = ({ toggleSidebar }) => {
 
                     <div
                         style={{ display: profileImage ? "none" : "flex" }}
-                        className="w-11 h-11 bg-[#19b673] rounded-xl items-center justify-center text-white"
+                        className="w-10 h-10 rounded-xl items-center justify-center text-white shadow-sm bg-gradient-to-br from-[#19b673] to-[#128a56]"
                     >
-                        <User size={22} />
-                    </div>
-
-                    <div className="hidden sm:block">
-                        <p className="font-bold text-gray-900 text-[15px]">{user?.userName || "User"}</p>
-                        <p className="text-gray-500 text-[13px]">{user?.email || "user@example.com"}</p>
+                        <User size={20} strokeWidth={2.5} />
                     </div>
                 </button>
 

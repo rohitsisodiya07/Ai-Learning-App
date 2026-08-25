@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import axios from "axios";
 import toast from "react-hot-toast";
@@ -9,8 +9,9 @@ import {
     Loader2,
     Send,
     Trophy,
+    AlertCircle,
 } from "lucide-react";
-import api from '../../Api'
+import api from "../../Api";
 
 const QuizTakePage = () => {
     const { quizId } = useParams();
@@ -20,13 +21,15 @@ const QuizTakePage = () => {
     const [answers, setAnswers] = useState({});
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
+    const [error, setError] = useState("");
 
-    // Get Quiz
+    const token = localStorage.getItem("token");
+
     useEffect(() => {
         const fetchQuiz = async () => {
             try {
                 setLoading(true);
-                const token = localStorage.getItem("token");
+                setError("");
 
                 if (!token) {
                     toast.error("Please login first");
@@ -35,75 +38,137 @@ const QuizTakePage = () => {
                 }
 
                 if (!quizId) {
-                    toast.error("Quiz ID missing");
-                    navigate("/documents");
+                    setError("Quiz ID is missing");
                     return;
                 }
 
                 const response = await axios.get(`${api}/quiz/${quizId}`, {
-                    headers: { Authorization: `Bearer ${token}` },
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    },
                 });
 
-                if (response.data.success) {
-                    const fetchedQuiz = response.data.data;
+                if (!response.data?.success) {
+                    throw new Error(response.data?.message || "Failed to load quiz");
+                }
 
-                    // Agar quiz already completed hai, toh turant result page par bhej do
-                    if (fetchedQuiz.completedAt) {
-                        toast("Quiz already submitted. Redirecting to results...", { icon: 'ℹ️' });
-                        navigate(`/quiz/${quizId}/results`, { replace: true });
-                        return; // Yahan se function return ho jayega, loader ghumta rahega flash nahi hoga
+                const fetchedQuiz = response.data.data;
+
+                if (!fetchedQuiz?._id) {
+                    throw new Error("Invalid quiz data");
+                }
+
+                if (!Array.isArray(fetchedQuiz.questions) || fetchedQuiz.questions.length === 0) {
+                    throw new Error("No questions available in this quiz");
+                }
+
+                if (fetchedQuiz.completedAt) {
+                    toast("Quiz already submitted. Redirecting...", { icon: "ℹ️" });
+                    navigate(`/quiz/${quizId}/results`, { replace: true });
+                    return;
+                }
+
+                const cleanedQuestions = fetchedQuiz.questions.map((question) => {
+                    let type = question.questionType || question.type || "mcq";
+                    type = String(type).toLowerCase().trim();
+
+                    if (type === "multiple_choice" || type === "multiple-choice" || type === "multiplechoice") {
+                        type = "mcq";
                     }
 
-                    setQuiz(fetchedQuiz);
-                    setLoading(false); // Sirf tabhi loading false karo jab quiz take karna ho
-                } else {
-                    toast.error("Failed to load quiz");
-                    setLoading(false);
-                }
+                    if (type === "truefalse" || type === "true-false" || type === "true/false") {
+                        type = "true_false";
+                    }
+
+                    if (type === "short-answer" || type === "shortanswer") {
+                        type = "short_answer";
+                    }
+
+                    let options = Array.isArray(question.options)
+                        ? question.options.filter((option) => typeof option === "string" && option.trim().length > 0)
+                        : [];
+
+                    if (type === "true_false") {
+                        options = ["True", "False"];
+                    }
+
+                    if (type === "short_answer") {
+                        options = [];
+                    }
+
+                    return {
+                        ...question,
+                        questionType: type,
+                        options,
+                    };
+                });
+
+                setQuiz({
+                    ...fetchedQuiz,
+                    questions: cleanedQuestions,
+                });
             } catch (error) {
                 console.error("Fetch Quiz Error:", error);
-                toast.error(error.response?.data?.message || "Failed to load quiz");
-                navigate("/documents");
+                const message = error.response?.data?.message || error.message || "Failed to load quiz";
+                setError(message);
+                toast.error(message);
+            } finally {
                 setLoading(false);
             }
-            // Humne finally block hata diya hai taaki response scope ka error na aaye
         };
 
         fetchQuiz();
-    }, [quizId, navigate]);
+    }, [quizId, navigate, token]);
 
-    // Select Answer
+    const questions = quiz?.questions || [];
+
+    const answeredCount = useMemo(() => {
+        return Object.values(answers).filter(
+            (answer) => typeof answer === "string" && answer.trim().length > 0
+        ).length;
+    }, [answers]);
+
     const handleAnswerChange = (questionIndex, answer) => {
-        setAnswers((prev) => ({
-            ...prev,
+        setAnswers((previous) => ({
+            ...previous,
             [questionIndex]: answer,
         }));
     };
 
-    // Submit Quiz
     const handleSubmitQuiz = async () => {
         if (!quiz) return;
 
-        const totalQuestions = quiz.questions.length;
+        const totalQuestions = questions.length;
+        const unansweredQuestions = questions
+            .map((question, index) => ({ question, index }))
+            .filter(({ index }) => !answers[index] || !String(answers[index]).trim());
 
-        if (Object.keys(answers).length !== totalQuestions) {
+        if (unansweredQuestions.length > 0) {
             toast.error(`Please answer all ${totalQuestions} questions`);
+            const firstIndex = unansweredQuestions[0].index;
+
+            setTimeout(() => {
+                document.getElementById(`question-${firstIndex}`)?.scrollIntoView({
+                    behavior: "smooth",
+                    block: "center",
+                });
+            }, 100);
             return;
         }
 
         try {
             setSubmitting(true);
-            const token = localStorage.getItem("token");
+            const currentToken = localStorage.getItem("token");
 
-            if (!token) {
+            if (!currentToken) {
                 toast.error("Please login again");
                 navigate("/");
                 return;
             }
 
-            const formattedAnswers = quiz.questions.map((_, index) => ({
+            const formattedAnswers = questions.map((_, index) => ({
                 questionIndex: index,
-                selectedAnswer: answers[index],
+                selectedAnswer: String(answers[index]).trim(),
             }));
 
             const response = await axios.post(
@@ -111,194 +176,289 @@ const QuizTakePage = () => {
                 { answers: formattedAnswers },
                 {
                     headers: {
-                        Authorization: `Bearer ${token}`,
+                        Authorization: `Bearer ${currentToken}`,
                         "Content-Type": "application/json",
                     },
                 }
             );
 
-            if (response.data.success) {
-                toast.success("Quiz submitted successfully!");
-                navigate(`/quiz/${quizId}/results`, {
-                    state: { result: response.data.data },
-                });
+            if (!response.data?.success) {
+                throw new Error(response.data?.message || "Failed to submit quiz");
             }
+
+            toast.success("Quiz submitted successfully!");
+
+            navigate(`/quiz/${quizId}/results`, {
+                state: { result: response.data.data },
+            });
         } catch (error) {
-            console.error("Submit quiz error:", error);
-            toast.error(error.response?.data?.message || "Failed to submit quiz");
+            console.error("Submit Quiz Error:", error);
+            toast.error(error.response?.data?.message || error.message || "Failed to submit quiz");
         } finally {
             setSubmitting(false);
         }
     };
 
+    const handleBack = () => {
+        navigate(-1);
+    };
+
     if (loading) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-slate-50">
+            <div className="min-h-screen bg-slate-50 flex items-center justify-center px-5">
                 <div className="flex flex-col items-center gap-3">
-                    <Loader2 size={35} className="animate-spin text-emerald-500" />
-                    <p className="text-sm text-slate-500">Loading quiz...</p>
+                    <Loader2 size={38} className="animate-spin text-emerald-500" />
+                    <p className="text-sm font-medium text-slate-500">Loading quiz...</p>
                 </div>
             </div>
         );
     }
 
-    if (!quiz) {
+    if (error) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-slate-50">
-                <div className="text-center">
-                    <h2 className="text-xl font-bold text-slate-800">Quiz not found</h2>
+            <div className="min-h-screen bg-slate-50 flex items-center justify-center px-5">
+                <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+                    <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-red-50">
+                        <AlertCircle size={28} className="text-red-500" />
+                    </div>
+                    <h2 className="mt-5 text-xl font-bold text-slate-900">Unable to load quiz</h2>
+                    <p className="mt-2 text-sm leading-6 text-slate-500">{error}</p>
                     <button
-                        onClick={() => navigate("/documents")}
-                        className="mt-4 px-5 py-2.5 rounded-xl bg-emerald-500 text-white font-semibold"
+                        onClick={handleBack}
+                        className="mt-6 inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-600"
                     >
-                        Back to Documents
+                        <ArrowLeft size={17} />
+                        Go Back
                     </button>
                 </div>
             </div>
         );
     }
 
+    if (!quiz || questions.length === 0) {
+        return (
+            <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+                <div className="text-center">
+                    <Trophy size={45} className="mx-auto text-slate-300" />
+                    <h2 className="mt-4 text-xl font-bold text-slate-800">Quiz not found</h2>
+                    <button
+                        onClick={handleBack}
+                        className="mt-5 rounded-xl bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-white"
+                    >
+                        Back
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    const progress = totalQuestionsSafe(answeredCount, questions.length);
+
     return (
         <div className="min-h-screen bg-slate-50 pb-12">
-
-            {/* Header */}
-            <div className="bg-white border-b border-slate-200 sticky top-0 z-20">
-                <div className="max-w-5xl mx-auto px-5 py-4">
+            <div className="sticky top-0 z-20 border-b border-slate-200 bg-white">
+                <div className="mx-auto max-w-5xl px-5 py-4">
                     <div className="flex items-center justify-between gap-4">
                         <button
-                            onClick={() => navigate(-1)}
-                            className="flex items-center gap-2 text-sm text-slate-600 hover:text-slate-900"
+                            onClick={handleBack}
+                            className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 transition hover:text-slate-900"
                         >
-                            <ArrowLeft size={18} /> Back
+                            <ArrowLeft size={18} />
+                            Back
                         </button>
-
-                        <div className="flex items-center gap-2">
+                        <div className="hidden sm:flex items-center gap-2">
                             <Trophy size={20} className="text-emerald-500" />
                             <span className="font-bold text-slate-800">Quiz</span>
                         </div>
-
-                        <div className="text-sm font-medium text-slate-500">
-                            {Object.keys(answers).length} / {quiz.questions.length} answered
+                        <div className="text-right">
+                            <p className="text-sm font-bold text-slate-700">
+                                {answeredCount} / {questions.length}
+                            </p>
+                            <p className="text-xs text-slate-400">Answered</p>
                         </div>
                     </div>
                 </div>
             </div>
 
-            {/* Content */}
-            <main className="max-w-4xl mx-auto px-5 py-8">
+            <main className="mx-auto max-w-4xl px-5 py-8">
+                <div className="mb-6 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+                    <div className="p-6 md:p-7">
+                        <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                                <p className="text-xs font-bold uppercase tracking-wider text-emerald-500">
+                                    AI Generated Quiz
+                                </p>
+                                <h1 className="mt-2 text-2xl font-bold leading-tight text-slate-900 md:text-3xl">
+                                    {quiz.title || "Quiz"}
+                                </h1>
+                            </div>
+                            <div className="flex shrink-0 items-center justify-center rounded-2xl bg-emerald-50 p-4">
+                                <Trophy size={28} className="text-emerald-500" />
+                            </div>
+                        </div>
 
-                {/* Quiz Title Card */}
-                <div className="bg-white rounded-2xl border border-slate-200 p-6 mb-6 shadow-sm">
-                    <h1 className="text-2xl font-bold text-slate-900">{quiz.title}</h1>
-                    <div className="flex flex-wrap gap-3 mt-4">
-                        <span className="px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 text-sm font-medium">
-                            {quiz.questions.length} Questions
-                        </span>
-                        <span className="px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 text-sm font-medium">
-                            AI Generated
-                        </span>
+                        <div className="mt-5 flex flex-wrap gap-2">
+                            <span className="rounded-lg bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700">
+                                {questions.length} Questions
+                            </span>
+                            <span className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600">
+                                Mixed Quiz
+                            </span>
+                        </div>
+
+                        <div className="mt-6">
+                            <div className="mb-2 flex items-center justify-between">
+                                <span className="text-xs font-semibold text-slate-500">Your Progress</span>
+                                <span className="text-xs font-bold text-emerald-600">{progress}%</span>
+                            </div>
+                            <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+                                <div
+                                    className="h-full rounded-full bg-emerald-500 transition-all duration-300"
+                                    style={{ width: `${progress}%` }}
+                                />
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                {/* Questions List */}
                 <div className="space-y-5">
-                    {quiz.questions.map((question, index) => {
+                    {questions.map((question, index) => {
                         const selectedAnswer = answers[index];
-                        const qType = question.questionType || question.type;
+                        let qType = question.questionType || question.type || "mcq";
+                        const normalizedType = String(qType).toLowerCase().trim();
+
+                        const isShortAnswer = normalizedType === "short_answer" || normalizedType === "short-answer" || normalizedType === "shortanswer";
+                        const isTrueFalse = normalizedType === "true_false" || normalizedType === "true-false" || normalizedType === "truefalse";
 
                         return (
-                            <div key={index} className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+                            <div
+                                id={`question-${index}`}
+                                key={index}
+                                className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition hover:shadow-md md:p-7"
+                            >
                                 <div className="flex items-start gap-4">
-                                    <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold shrink-0">
+                                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 font-bold text-emerald-600">
                                         {index + 1}
                                     </div>
-
-                                    <div className="flex-1 min-w-0">
-
-                                        {/* Type & Difficulty Badge */}
-                                        <div className="flex items-center gap-2 mb-2">
-                                            <span className="text-xs font-semibold uppercase tracking-wide text-emerald-600">
-                                                {qType === "true_false" ? "True / False" : qType === "short_answer" ? "Short Answer" : "MCQ"}
+                                    <div className="min-w-0 flex-1">
+                                        <div className="mb-2 flex flex-wrap items-center gap-2">
+                                            <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-emerald-600">
+                                                {isShortAnswer ? "Short Answer" : isTrueFalse ? "True / False" : "MCQ"}
                                             </span>
-                                            <span className="text-xs text-slate-400">•</span>
-                                            <span className="text-xs text-slate-500 capitalize font-medium">{question.difficulty}</span>
+                                            {question.difficulty && (
+                                                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold capitalize text-slate-500">
+                                                    {question.difficulty}
+                                                </span>
+                                            )}
                                         </div>
 
-                                        {/* Question Text */}
-                                        <h2 className="text-base md:text-lg font-semibold text-slate-900 leading-7">
+                                        <h2 className="text-base font-semibold leading-7 text-slate-900 md:text-lg">
                                             {question.question}
                                         </h2>
-
-                                        {/* Answer Inputs based on Type */}
-                                        {qType === "short_answer" ? (
-                                            <textarea
-                                                value={selectedAnswer || ""}
-                                                onChange={(e) => handleAnswerChange(index, e.target.value)}
-                                                placeholder="Write your answer here..."
-                                                rows={4}
-                                                className="w-full mt-5 px-4 py-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-400 resize-none text-sm text-slate-800"
-                                            />
-                                        ) : (
-                                            <div className="grid gap-3 mt-5">
-                                                {question.options?.map((option, optionIndex) => {
-                                                    const isSelected = selectedAnswer === option;
-                                                    return (
-                                                        <button
-                                                            type="button"
-                                                            key={optionIndex}
-                                                            onClick={() => handleAnswerChange(index, option)}
-                                                            className={`w-full text-left flex items-center gap-3 px-4 py-3.5 rounded-xl border transition-all ${isSelected
-                                                                ? "border-emerald-500 bg-emerald-50 text-emerald-900 font-medium"
-                                                                : "border-slate-200 hover:border-emerald-300 hover:bg-slate-50 text-slate-700"
-                                                                }`}
-                                                        >
-                                                            {isSelected ? (
-                                                                <CheckCircle2 size={20} className="text-emerald-500 shrink-0" />
-                                                            ) : (
-                                                                <Circle size={20} className="text-slate-300 shrink-0" />
-                                                            )}
-                                                            <span className="text-sm">{option}</span>
-                                                        </button>
-                                                    );
-                                                })}
-                                            </div>
-                                        )}
-
                                     </div>
                                 </div>
+
+                                {isShortAnswer ? (
+                                    <div className="mt-6">
+                                        <textarea
+                                            value={selectedAnswer || ""}
+                                            onChange={(e) => handleAnswerChange(index, e.target.value)}
+                                            placeholder="Write your answer here..."
+                                            rows={4}
+                                            className={`w-full resize-none rounded-2xl border px-4 py-4 text-sm leading-6 text-slate-800 outline-none transition ${selectedAnswer?.trim()
+                                                    ? "border-emerald-400 bg-emerald-50/30"
+                                                    : "border-slate-200 bg-white focus:border-emerald-400 focus:ring-4 focus:ring-emerald-50"
+                                                }`}
+                                        />
+                                        <div className="mt-2 flex items-center justify-between">
+                                            <p className="text-xs text-slate-400">Type your answer in your own words.</p>
+                                            {selectedAnswer?.trim() && (
+                                                <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600">
+                                                    <CheckCircle2 size={14} /> Answered
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="mt-6 grid gap-3">
+                                        {(isTrueFalse
+                                            ? ["True", "False"]
+                                            : Array.isArray(question.options) ? question.options : []
+                                        ).map((option, optionIndex) => {
+                                            const isSelected = selectedAnswer === option;
+                                            return (
+                                                <button
+                                                    type="button"
+                                                    key={optionIndex}
+                                                    onClick={() => handleAnswerChange(index, option)}
+                                                    className={`group flex w-full items-center gap-3 rounded-2xl border p-4 text-left transition-all ${isSelected
+                                                            ? "border-emerald-500 bg-emerald-50 text-emerald-900 shadow-sm"
+                                                            : "border-slate-200 bg-white text-slate-700 hover:border-emerald-300 hover:bg-slate-50"
+                                                        }`}
+                                                >
+                                                    <div
+                                                        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-sm font-bold ${isSelected
+                                                                ? "bg-emerald-500 text-white"
+                                                                : "bg-slate-100 text-slate-500 group-hover:bg-emerald-50 group-hover:text-emerald-600"
+                                                            }`}
+                                                    >
+                                                        {isTrueFalse
+                                                            ? option === "True" ? "✓" : "×"
+                                                            : String.fromCharCode(65 + optionIndex)}
+                                                    </div>
+                                                    <span className="flex-1 text-sm font-medium">{option}</span>
+                                                    {isSelected && <CheckCircle2 size={20} className="shrink-0 text-emerald-500" />}
+                                                </button>
+                                            );
+                                        })}
+                                        {!isTrueFalse && (!Array.isArray(question.options) || question.options.length === 0) && (
+                                            <div className="rounded-2xl border border-orange-200 bg-orange-50 p-4 text-sm text-orange-700">
+                                                This question does not contain valid options.
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         );
                     })}
                 </div>
 
-                {/* Submit Section */}
-                <div className="mt-8 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                        <div>
-                            <p className="font-semibold text-slate-800">Ready to submit?</p>
-                            <p className="text-sm text-slate-500 mt-1">
-                                Answered {Object.keys(answers).length} of {quiz.questions.length} questions
-                            </p>
+                <div className="mt-8 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+                    <div className="p-6 md:p-7">
+                        <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                                <p className="font-bold text-slate-900">Ready to submit?</p>
+                                <p className="mt-1 text-sm text-slate-500">
+                                    Answered <span className="font-semibold text-slate-700">{answeredCount}</span> of <span className="font-semibold text-slate-700">{questions.length}</span> questions
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={handleSubmitQuiz}
+                                disabled={submitting}
+                                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 px-7 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                            >
+                                {submitting ? (
+                                    <>
+                                        <Loader2 size={18} className="animate-spin" /> Submitting...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Send size={18} /> Submit Quiz
+                                    </>
+                                )}
+                            </button>
                         </div>
-
-                        <button
-                            type="button"
-                            onClick={handleSubmitQuiz}
-                            disabled={submitting}
-                            className="w-full sm:w-auto px-7 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold flex items-center justify-center gap-2 transition-all shadow-sm"
-                        >
-                            {submitting ? (
-                                <><Loader2 size={18} className="animate-spin" /> Submitting...</>
-                            ) : (
-                                <><Send size={18} /> Submit Quiz</>
-                            )}
-                        </button>
                     </div>
                 </div>
-
             </main>
         </div>
     );
+};
+
+const totalQuestionsSafe = (answered, total) => {
+    if (!total || total <= 0) return 0;
+    return Math.round((answered / total) * 100);
 };
 
 export default QuizTakePage;
