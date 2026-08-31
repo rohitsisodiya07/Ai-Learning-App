@@ -38,9 +38,10 @@ const StudyPlanFlashcards = () => {
     const currentCard = cards[currentIndex];
 
     const reviewedCount = useMemo(() => {
-        return cards.filter(
-            (card) => Number(card.reviewCount || 0) > 0
-        ).length;
+        return cards.filter((card) => {
+            const count = Number(card?.reviewCount || 0);
+            return count > 0 && card?.lastReviewed != null;
+        }).length;
     }, [cards]);
 
     const allCardsReviewed =
@@ -207,14 +208,14 @@ const StudyPlanFlashcards = () => {
                     cards: previous.cards.map((card) =>
                         card._id === currentCard._id
                             ? {
-                                  ...card,
-                                  reviewCount:
-                                      result.reviewCount ||
-                                      Number(card.reviewCount || 0) + 1,
-                                  lastReviewed:
-                                      result.lastReviewed ||
-                                      new Date(),
-                              }
+                                ...card,
+                                reviewCount:
+                                    result.reviewCount ||
+                                    Number(card.reviewCount || 0) + 1,
+                                lastReviewed:
+                                    result.lastReviewed ||
+                                    new Date(),
+                            }
                             : card
                     ),
                 };
@@ -435,10 +436,9 @@ const StudyPlanFlashcards = () => {
 
                         {currentCard.difficulty && (
                             <span
-                                className={`rounded-full border px-3 py-1 text-[11px] font-bold capitalize ${
-                                    difficultyStyle[currentCard.difficulty] ||
+                                className={`rounded-full border px-3 py-1 text-[11px] font-bold capitalize ${difficultyStyle[currentCard.difficulty] ||
                                     "bg-slate-50 text-slate-500 border-slate-200"
-                                }`}
+                                    }`}
                             >
                                 {currentCard.difficulty}
                             </span>

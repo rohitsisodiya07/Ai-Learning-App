@@ -130,11 +130,21 @@ const FlashCardListPage = () => {
   // ==========================================
   const handleStudyNow = (flashcardSet) => {
     const documentId = getDocumentId(flashcardSet);
-    if (!documentId) {
-      toast.error("Document ID not found");
+
+    // Agar flashcard kisi document ka hai
+    if (documentId) {
+      navigate(`/documents/${documentId}/flashcards`);
       return;
     }
-    navigate(`/documents/${documentId}/flashcards`);
+
+    // Agar flashcard Study Plan (planId & dayNumber) ka hai
+    if (flashcardSet?.planId && flashcardSet?.dayNumber) {
+      navigate(`/studyPlan/${flashcardSet.planId}/day/${flashcardSet.dayNumber}/flashcards`);
+      return;
+    }
+
+    // Agar dono hi na milein
+    toast.error("Learning source not found for this flashcard set");
   };
 
   // ==========================================

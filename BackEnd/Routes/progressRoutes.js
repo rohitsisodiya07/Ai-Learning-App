@@ -8,6 +8,8 @@ const auth = require('../Middleware/authMiddleware');
 
 router.get('/dashboard', auth, progressController.getDashBoard)
 
+router.get('/dashboard/export', auth, progressController.exportDashboard)
+
 router.get('/weakTopics', auth, progressController.getWeakTopics)
 
 router.post("/weakTopics/practice", auth, progressController.generateWeakTopicPractice);

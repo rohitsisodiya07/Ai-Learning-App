@@ -211,13 +211,12 @@ const StudyPlanDetails = () => {
                             </div>
 
                             <div
-                                className={`w-fit rounded-full px-4 py-2 text-xs font-bold capitalize border ${
-                                    plan.status === "completed"
+                                className={`w-fit rounded-full px-4 py-2 text-xs font-bold capitalize border ${plan.status === "completed"
                                         ? "bg-blue-50 text-blue-600 border-blue-100"
                                         : plan.status === "paused"
-                                        ? "bg-amber-50 text-amber-600 border-amber-100"
-                                        : "bg-emerald-50 text-emerald-600 border-emerald-100"
-                                }`}
+                                            ? "bg-amber-50 text-amber-600 border-amber-100"
+                                            : "bg-emerald-50 text-emerald-600 border-emerald-100"
+                                    }`}
                             >
                                 {plan.status}
                             </div>
@@ -345,21 +344,19 @@ const StudyPlanDetails = () => {
                         return (
                             <div
                                 key={day._id || dayNumber}
-                                className={`overflow-hidden rounded-3xl border bg-white shadow-sm transition ${
-                                    isDayCompleted
+                                className={`overflow-hidden rounded-3xl border bg-white shadow-sm transition ${isDayCompleted
                                         ? "border-emerald-200"
                                         : "border-slate-200"
-                                }`}
+                                    }`}
                             >
                                 <div className="p-5 md:p-6">
                                     <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                                         <div className="flex gap-3">
                                             <div
-                                                className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-sm font-bold ${
-                                                    isDayCompleted
+                                                className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-sm font-bold ${isDayCompleted
                                                         ? "bg-emerald-100 text-[#19b673]"
                                                         : "bg-slate-100 text-slate-600"
-                                                }`}
+                                                    }`}
                                             >
                                                 {isDayCompleted ? (
                                                     <CheckCircle2 size={23} />
@@ -384,13 +381,12 @@ const StudyPlanDetails = () => {
                                         </div>
 
                                         <span
-                                            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold border ${
-                                                dayStatus === "Completed"
+                                            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold border ${dayStatus === "Completed"
                                                     ? "bg-emerald-50 text-[#19b673] border-emerald-100"
                                                     : dayStatus === "In Progress"
-                                                    ? "bg-orange-50 text-orange-600 border-orange-100"
-                                                    : "bg-slate-100 text-slate-500 border-slate-200"
-                                            }`}
+                                                        ? "bg-orange-50 text-orange-600 border-orange-100"
+                                                        : "bg-slate-100 text-slate-500 border-slate-200"
+                                                }`}
                                         >
                                             {dayStatus === "Completed" ? (
                                                 <CheckCircle2 size={14} />
@@ -431,22 +427,20 @@ const StudyPlanDetails = () => {
                                     {/* STATUS TAGS */}
                                     <div className="mt-5 grid grid-cols-1 gap-2 sm:grid-cols-2">
                                         <div
-                                            className={`flex items-center gap-2 rounded-xl px-3 py-2.5 text-xs font-semibold border ${
-                                                isQuizCompleted
+                                            className={`flex items-center gap-2 rounded-xl px-3 py-2.5 text-xs font-semibold border ${isQuizCompleted
                                                     ? "bg-emerald-50 text-[#19b673] border-emerald-100"
                                                     : "bg-slate-50 text-slate-400 border-slate-200"
-                                            }`}
+                                                }`}
                                         >
                                             <Target size={15} />
                                             {isQuizCompleted ? "Quiz completed" : "Quiz pending"}
                                         </div>
 
                                         <div
-                                            className={`flex items-center gap-2 rounded-xl px-3 py-2.5 text-xs font-semibold border ${
-                                                isFlashcardsCompleted
+                                            className={`flex items-center gap-2 rounded-xl px-3 py-2.5 text-xs font-semibold border ${isFlashcardsCompleted
                                                     ? "bg-emerald-50 text-[#19b673] border-emerald-100"
                                                     : "bg-slate-50 text-slate-400 border-slate-200"
-                                            }`}
+                                                }`}
                                         >
                                             <BookOpen size={15} />
                                             {isFlashcardsCompleted
@@ -461,11 +455,10 @@ const StudyPlanDetails = () => {
                                             <button
                                                 onClick={() => viewQuizResult(quizId)}
                                                 disabled={!quizId}
-                                                className={`group flex items-center justify-between rounded-2xl border p-4 text-left transition ${
-                                                    quizId
+                                                className={`group flex items-center justify-between rounded-2xl border p-4 text-left transition ${quizId
                                                         ? "border-emerald-200 bg-emerald-50/60 hover:border-[#19b673] hover:bg-emerald-50"
                                                         : "cursor-not-allowed border-slate-200 bg-slate-50 opacity-60"
-                                                }`}
+                                                    }`}
                                             >
                                                 <div className="flex items-center gap-3">
                                                     <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-[#19b673] shadow-sm">
@@ -510,32 +503,53 @@ const StudyPlanDetails = () => {
                                             </button>
                                         )}
 
-                                        <button
-                                            onClick={() => openFlashcards(dayNumber)}
-                                            className="group flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:border-[#19b673] hover:bg-emerald-50/50"
-                                        >
-                                            <div className="flex items-center gap-3">
-                                                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-[#19b673]">
-                                                    <BookOpen size={19} />
+                                        {isFlashcardsCompleted ? (
+                                            <button
+                                                onClick={() => openFlashcards(dayNumber)}
+                                                className="group flex items-center justify-between rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4 text-left transition hover:border-[#19b673] hover:bg-emerald-50"
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-[#19b673] shadow-sm">
+                                                        <CheckCircle2 size={19} />
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-sm font-bold text-slate-800">
+                                                            Flashcards Completed
+                                                        </p>
+                                                        <p className="text-xs text-slate-500">
+                                                            Review learned concepts
+                                                        </p>
+                                                    </div>
                                                 </div>
-                                                <div>
-                                                    <p className="text-sm font-bold text-slate-800">
-                                                        {isFlashcardsCompleted
-                                                            ? "View Flashcards"
-                                                            : "Study Flashcards"}
-                                                    </p>
-                                                    <p className="text-xs text-slate-500">
-                                                        {isFlashcardsCompleted
-                                                            ? "Review learned concepts"
-                                                            : "Review key concepts"}
-                                                    </p>
+                                                <ChevronRight
+                                                    size={18}
+                                                    className="text-slate-400 group-hover:text-[#19b673]"
+                                                />
+                                            </button>
+                                        ) : (
+                                            <button
+                                                onClick={() => openFlashcards(dayNumber)}
+                                                className="group flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:border-[#19b673] hover:bg-emerald-50/50"
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-[#19b673]">
+                                                        <BookOpen size={19} />
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-sm font-bold text-slate-800">
+                                                            Study Flashcards
+                                                        </p>
+                                                        <p className="text-xs text-slate-500">
+                                                            Review key concepts
+                                                        </p>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                            <ChevronRight
-                                                size={18}
-                                                className="text-slate-400 group-hover:text-[#19b673]"
-                                            />
-                                        </button>
+                                                <ChevronRight
+                                                    size={18}
+                                                    className="text-slate-400 group-hover:text-[#19b673]"
+                                                />
+                                            </button>
+                                        )}
                                     </div>
 
                                     {/* DAY COMPLETED BANNER */}

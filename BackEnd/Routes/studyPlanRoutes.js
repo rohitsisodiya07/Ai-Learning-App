@@ -36,6 +36,11 @@ router.get(
     studyPlanController.studyDashboard
 );
 
+router.get(
+    "/dashboard/export",
+    auth,
+    studyPlanController.exportStudyDashboard
+);
 // ==========================================
 // GET SINGLE STUDY PLAN
 // ==========================================

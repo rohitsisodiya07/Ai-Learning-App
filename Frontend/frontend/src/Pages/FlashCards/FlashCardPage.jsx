@@ -16,8 +16,6 @@ const FlashCardPage = () => {
   const { documentId } = useParams();
   const navigate = useNavigate();
 
-  console.log("DOCUMENT ID:", documentId);
-
   const [flashcards, setFlashcards] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
 
@@ -43,22 +41,6 @@ const FlashCardPage = () => {
         }
       );
 
-      console.log("Flashcards API Response:", response.data);
-
-      // Backend response:
-      //
-      // {
-      //   success: true,
-      //   count: 1,
-      //   data: [
-      //      {
-      //        _id: "...",
-      //        documentId: "...",
-      //        cards: [...]
-      //      }
-      //   ]
-      // }
-
       const sets = response.data?.data;
 
       if (!Array.isArray(sets)) {
@@ -77,9 +59,6 @@ const FlashCardPage = () => {
 
         return [];
       });
-
-      console.log("All Flashcards:", allCards);
-      console.log("Total Cards:", allCards.length);
 
       setFlashcards(allCards);
       setCurrentIndex(0);
@@ -136,8 +115,6 @@ const FlashCardPage = () => {
         }
       );
 
-      console.log("Review Response:", response.data);
-
       // Update local card
       setFlashcards((prev) =>
         prev.map((card) =>
@@ -188,8 +165,6 @@ const FlashCardPage = () => {
         }
       );
 
-      console.log("Star Response:", response.data);
-
       const updatedCard = response.data?.data;
 
       if (!updatedCard) {
@@ -238,13 +213,13 @@ const FlashCardPage = () => {
   };
 
   // =====================================================
-  // STUDIED COUNT
+  // STUDIED COUNT (Strict check using reviewCount & lastReviewed)
   // =====================================================
 
   const studiedCount = flashcards.filter(
     (card) =>
-      card.lastReviewed ||
-      Number(card.reviewCount) > 0
+      Number(card?.reviewCount || 0) > 0 &&
+      card?.lastReviewed != null
   ).length;
 
   // =====================================================

@@ -3,6 +3,8 @@ const flashcardModel = require("../Model/flashcardModel");
 const studyPlanModel = require("../Model/studyPlanModel");
 const studyActivityModel = require('../Model/studyActivityModel')
 const { calculateStudyStats } = require('../Utilities/recordStudyActivity')
+const PDFDocument = require("pdfkit");
+
 
 const getQuizPercentage = (quiz) => {
     const score = Number(quiz.score) || 0;
@@ -17,10 +19,10 @@ const getQuizPercentage = (quiz) => {
     }
 
     return Math.round((score / totalQuestions) * 100);
-};
-
+}
 
 const getDashBoard = async (req, res) => {
+
     try {
         const userId = req.user._id;
 
@@ -69,10 +71,10 @@ const getDashBoard = async (req, res) => {
         const flashcardProgress =
             totalFlashcards > 0
                 ? Math.round(
-                      (reviewedFlashcards /
-                          totalFlashcards) *
-                      100
-                  )
+                    (reviewedFlashcards /
+                        totalFlashcards) *
+                    100
+                )
                 : 0;
 
         const studyPlans = await studyPlanModel
@@ -141,10 +143,10 @@ const getDashBoard = async (req, res) => {
         const quizCompletionRate =
             totalQuizzes > 0
                 ? Math.round(
-                      (completedQuizzes /
-                          totalQuizzes) *
-                      100
-                  )
+                    (completedQuizzes /
+                        totalQuizzes) *
+                    100
+                )
                 : 0;
 
         const activities = await studyActivityModel
@@ -406,10 +408,10 @@ const getWeakTopics = async (req, res) => {
             const quizAccuracy =
                 totalQuestions > 0
                     ? Math.round(
-                          (correctAnswers /
-                              totalQuestions) *
-                          100
-                      )
+                        (correctAnswers /
+                            totalQuestions) *
+                        100
+                    )
                     : 0;
 
             if (
@@ -442,10 +444,10 @@ const getWeakTopics = async (req, res) => {
             const overallAccuracy =
                 topic.totalQuestions > 0
                     ? Math.round(
-                          (topic.correctAnswers /
-                              topic.totalQuestions) *
-                          100
-                      )
+                        (topic.correctAnswers /
+                            topic.totalQuestions) *
+                        100
+                    )
                     : 0;
 
             const accuracy =
@@ -908,10 +910,10 @@ const getWeakTopicImprovement = async (req, res) => {
             const accuracy =
                 quiz.totalQuestions > 0
                     ? Math.round(
-                          (quiz.score /
-                              quiz.totalQuestions) *
-                          100
-                      )
+                        (quiz.score /
+                            quiz.totalQuestions) *
+                        100
+                    )
                     : 0;
 
             if (!topicMap.has(topic)) {
@@ -990,11 +992,285 @@ const getWeakTopicImprovement = async (req, res) => {
     }
 };
 
+const exportDashboard = async (req, res) => {
+    try {
+        const userId = req.user._id;
+
+        // Same data jo dashboard par show ho raha hai
+        const totalQuizzes = await quizModel.countDocuments({
+            userId,
+        });
+
+        const completedQuizzes = await quizModel.countDocuments({
+            userId,
+            completedAt: { $ne: null },
+        });
+
+        const flashcardSets = await flashcardModel
+            .find({ userId })
+            .select("cards")
+            .lean();
+
+        const totalFlashcards = flashcardSets.reduce(
+            (total, flashcardSet) => {
+                return (
+                    total +
+                    (Array.isArray(flashcardSet.cards)
+                        ? flashcardSet.cards.length
+                        : 0)
+                );
+            },
+            0
+        );
+
+        let reviewedFlashcards = 0;
+
+        flashcardSets.forEach((flashcardSet) => {
+            if (!Array.isArray(flashcardSet.cards)) return;
+
+            flashcardSet.cards.forEach((card) => {
+                if (Number(card.reviewCount) > 0) {
+                    reviewedFlashcards++;
+                }
+            });
+        });
+
+        const flashcardProgress =
+            totalFlashcards > 0
+                ? Math.round(
+                    (reviewedFlashcards / totalFlashcards) * 100
+                )
+                : 0;
+
+        const studyPlans = await studyPlanModel
+            .find({ userId })
+            .sort({ createdAt: -1 })
+            .lean();
+
+        const totalStudyPlans = studyPlans.length;
+
+        const activeStudyPlans = studyPlans.filter(
+            (plan) => plan.status === "active"
+        ).length;
+
+        const completedStudyPlans = studyPlans.filter(
+            (plan) => plan.status === "completed"
+        ).length;
+
+        let studyPlanProgress = 0;
+
+        if (totalStudyPlans > 0) {
+            const totalProgress = studyPlans.reduce(
+                (sum, plan) =>
+                    sum + (Number(plan.progress) || 0),
+                0
+            );
+
+            studyPlanProgress = Math.round(
+                totalProgress / totalStudyPlans
+            );
+        }
+
+        const completedQuizData = await quizModel
+            .find({
+                userId,
+                completedAt: { $ne: null },
+            })
+            .select("score totalQuestions")
+            .lean();
+
+        const validScores = completedQuizData
+            .map((quiz) => getQuizPercentage(quiz))
+            .filter((score) => Number.isFinite(score));
+
+        let averageQuizScore = 0;
+        let bestQuizScore = 0;
+
+        if (validScores.length > 0) {
+            averageQuizScore = Math.round(
+                validScores.reduce(
+                    (sum, score) => sum + score,
+                    0
+                ) / validScores.length
+            );
+
+            bestQuizScore = Math.max(...validScores);
+        }
+
+        const quizCompletionRate =
+            totalQuizzes > 0
+                ? Math.round(
+                    (completedQuizzes / totalQuizzes) * 100
+                )
+                : 0;
+
+        const activities = await studyActivityModel
+            .find({ userId })
+            .sort({ activityDate: -1 })
+            .lean();
+
+        const {
+            currentStreak,
+            longestStreak,
+            totalStudyDays,
+            lastStudyDate,
+        } = calculateStudyStats(activities);
+
+        // PDF start
+        const doc = new PDFDocument({
+            margin: 50,
+        });
+
+        res.setHeader(
+            "Content-Type",
+            "application/pdf"
+        );
+
+        res.setHeader(
+            "Content-Disposition",
+            'attachment; filename="dashboard-summary.pdf"'
+        );
+
+        doc.pipe(res);
+
+        // Title
+        doc
+            .fontSize(22)
+            .font("Helvetica-Bold")
+            .text("Dashboard Summary", {
+                align: "center",
+            });
+
+        doc.moveDown();
+
+        doc
+            .fontSize(10)
+            .font("Helvetica")
+            .text(
+                `Generated on: ${new Date().toLocaleDateString()}`
+            );
+
+        doc.moveDown(2);
+
+        // Quiz Statistics
+        doc
+            .fontSize(16)
+            .font("Helvetica-Bold")
+            .text("Quiz Performance");
+
+        doc.moveDown(0.5);
+
+        doc
+            .fontSize(11)
+            .font("Helvetica")
+            .text(`Total Quizzes: ${totalQuizzes}`)
+            .text(`Completed Quizzes: ${completedQuizzes}`)
+            .text(
+                `Quiz Completion Rate: ${quizCompletionRate}%`
+            )
+            .text(
+                `Average Quiz Score: ${averageQuizScore}%`
+            )
+            .text(`Best Quiz Score: ${bestQuizScore}%`);
+
+        doc.moveDown(1.5);
+
+        // Flashcard Statistics
+        doc
+            .fontSize(16)
+            .font("Helvetica-Bold")
+            .text("Flashcard Progress");
+
+        doc.moveDown(0.5);
+
+        doc
+            .fontSize(11)
+            .font("Helvetica")
+            .text(`Total Flashcards: ${totalFlashcards}`)
+            .text(
+                `Reviewed Flashcards: ${reviewedFlashcards}`
+            )
+            .text(
+                `Flashcard Progress: ${flashcardProgress}%`
+            );
+
+        doc.moveDown(1.5);
+
+        // Study Plan Statistics
+        doc
+            .fontSize(16)
+            .font("Helvetica-Bold")
+            .text("Study Plans");
+
+        doc.moveDown(0.5);
+
+        doc
+            .fontSize(11)
+            .font("Helvetica")
+            .text(`Total Study Plans: ${totalStudyPlans}`)
+            .text(`Active Study Plans: ${activeStudyPlans}`)
+            .text(
+                `Completed Study Plans: ${completedStudyPlans}`
+            )
+            .text(
+                `Overall Study Plan Progress: ${studyPlanProgress}%`
+            );
+
+        doc.moveDown(1.5);
+
+        // Study Activity
+        doc
+            .fontSize(16)
+            .font("Helvetica-Bold")
+            .text("Study Activity");
+
+        doc.moveDown(0.5);
+
+        doc
+            .fontSize(11)
+            .font("Helvetica")
+            .text(`Current Streak: ${currentStreak} days`)
+            .text(`Longest Streak: ${longestStreak} days`)
+            .text(`Total Study Days: ${totalStudyDays}`)
+            .text(
+                `Last Study Date: ${lastStudyDate || "No activity"
+                }`
+            );
+
+        doc.moveDown(2);
+
+        doc
+            .fontSize(9)
+            .font("Helvetica")
+            .text(
+                "Generated by AI Learning App",
+                {
+                    align: "center",
+                }
+            );
+
+        doc.end();
+
+    } catch (error) {
+        console.error(
+            "Export Dashboard Error:",
+            error
+        );
+
+        return res.status(500).json({
+            success: false,
+            message: "Failed to export dashboard",
+            error: error.message,
+        });
+    }
+};
+
 module.exports = {
     getDashBoard,
     getWeakTopics,
     generateWeakTopicPractice,
     generateWeakTopicQuiz,
     getStudyStreak,
-    getWeakTopicImprovement
+    getWeakTopicImprovement,
+    exportDashboard
 };

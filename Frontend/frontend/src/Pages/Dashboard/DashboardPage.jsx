@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-
 import {
   BookOpen,
   ClipboardCheck,
@@ -20,28 +19,24 @@ import {
   TrendingUp,
   Award,
   Zap,
+  Download,
 } from "lucide-react";
-
 import api from "../../Api";
 import { useMemo } from "react";
 
 const DashboardPage = () => {
   const navigate = useNavigate();
-
   const [dashboard, setDashboard] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
   const [error, setError] = useState("");
-
   const token = localStorage.getItem("token");
-  
+
   const fetchDashboard = async () => {
     try {
       setLoading(true);
       setError("");
-
-      if (!token) {
-        throw new Error("Please login again.");
-      }
+      if (!token) throw new Error("Please login again.");
 
       const response = await fetch(`${api}/progress/dashboard`, {
         method: "GET",
@@ -52,19 +47,49 @@ const DashboardPage = () => {
       });
 
       const result = await response.json();
-
-      if (!response.ok || !result.success) {
-        throw new Error(result.message || "Failed to load dashboard");
-      }
-
+      if (!response.ok || !result.success) throw new Error(result.message || "Failed to load dashboard");
       setDashboard(result.data);
     } catch (err) {
       console.error("Dashboard Fetch Error:", err);
-      setError(
-        err.message || "Something went wrong while loading dashboard"
-      );
+      setError(err.message || "Something went wrong while loading dashboard");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleExportDashboard = async () => {
+    try {
+      if (!token) throw new Error("Please login again.");
+      setExporting(true);
+
+      const response = await fetch(`${api}/progress/dashboard/export`, {
+        method: "GET",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!response.ok) {
+        let message = "Failed to export dashboard";
+        try {
+          const result = await response.json();
+          message = result.message || message;
+        } catch { }
+        throw new Error(message);
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "dashboard-summary.pdf";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Dashboard Export Error:", err);
+      alert(err.message || "Something went wrong while exporting dashboard");
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -143,69 +168,25 @@ const DashboardPage = () => {
   }, [recentQuizzes]);
 
   const stats = [
-    {
-      title: "Total Quizzes",
-      value: totalQuizzes,
-      subtitle: `${completedQuizzes} completed`,
-      icon: ClipboardCheck,
-      bg: "bg-orange-50",
-      color: "text-orange-600",
-    },
-    {
-      title: "Flashcards",
-      value: totalFlashcards,
-      subtitle: "Total sets",
-      icon: BookOpen,
-      bg: "bg-purple-50",
-      color: "text-purple-600",
-    },
-    {
-      title: "Study Plans",
-      value: totalStudyPlans,
-      subtitle: `${activeStudyPlans} active`,
-      icon: Target,
-      bg: "bg-blue-50",
-      color: "text-blue-600",
-    },
-    {
-      title: "Average Score",
-      value: `${averageQuizScore}%`,
-      subtitle: "Quiz performance",
-      icon: Trophy,
-      bg: "bg-emerald-50",
-      color: "text-emerald-600",
-    },
-    {
-      title: "Current Streak",
-      value: `${currentStreak} days`,
-      subtitle: "Keep learning!",
-      icon: Flame,
-      bg: "bg-red-50",
-      color: "text-red-500",
-    },
-    {
-      title: "Study Days",
-      value: totalStudyDays,
-      subtitle: "Total active days",
-      icon: CalendarDays,
-      bg: "bg-indigo-50",
-      color: "text-indigo-600",
-    },
+    { title: "Total Quizzes", value: totalQuizzes, subtitle: `${completedQuizzes} completed`, icon: ClipboardCheck, bg: "bg-orange-50", color: "text-orange-600" },
+    { title: "Flashcards", value: totalFlashcards, subtitle: "Total cards", icon: BookOpen, bg: "bg-purple-50", color: "text-purple-600" },
+    { title: "Study Plans", value: totalStudyPlans, subtitle: `${activeStudyPlans} active`, icon: Target, bg: "bg-blue-50", color: "text-blue-600" },
+    { title: "Average Score", value: `${averageQuizScore}%`, subtitle: "Quiz performance", icon: Trophy, bg: "bg-emerald-50", color: "text-emerald-600" },
+    { title: "Current Streak", value: `${currentStreak} days`, subtitle: "Keep learning!", icon: Flame, bg: "bg-red-50", color: "text-red-500" },
+    { title: "Study Days", value: totalStudyDays, subtitle: "Total active days", icon: CalendarDays, bg: "bg-indigo-50", color: "text-indigo-600" },
   ];
 
   const getQuizStatus = (completedAt) => {
     if (completedAt) {
       return (
         <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-100">
-          <CheckCircle2 size={12} />
-          Completed
+          <CheckCircle2 size={12} /> Completed
         </span>
       );
     }
     return (
       <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-orange-600 bg-orange-50 px-2.5 py-1 rounded-full border border-orange-100">
-        <Clock3 size={12} />
-        Pending
+        <Clock3 size={12} /> Pending
       </span>
     );
   };
@@ -218,9 +199,7 @@ const DashboardPage = () => {
             <div className="absolute inset-0 rounded-full border-4 border-gray-100" />
             <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-[#19b673] animate-spin" />
           </div>
-          <p className="mt-4 text-sm font-medium text-gray-500">
-            Loading your dashboard...
-          </p>
+          <p className="mt-4 text-sm font-medium text-gray-500">Loading your dashboard...</p>
         </div>
       </div>
     );
@@ -233,16 +212,13 @@ const DashboardPage = () => {
           <div className="w-16 h-16 mx-auto rounded-2xl bg-red-50 text-red-500 flex items-center justify-center">
             <CircleAlert size={30} />
           </div>
-          <h2 className="text-xl font-bold text-gray-900 mt-5">
-            Unable to load dashboard
-          </h2>
+          <h2 className="text-xl font-bold text-gray-900 mt-5">Unable to load dashboard</h2>
           <p className="text-sm text-gray-500 mt-2 leading-6">{error}</p>
           <button
             onClick={fetchDashboard}
             className="mt-6 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#19b673] text-white text-sm font-semibold hover:bg-[#159d63] transition shadow-sm"
           >
-            <RefreshCw size={17} />
-            Try Again
+            <RefreshCw size={17} /> Try Again
           </button>
         </div>
       </div>
@@ -251,89 +227,78 @@ const DashboardPage = () => {
 
   return (
     <div className="space-y-7 pb-10">
-
-      {/* =================================================
-          HERO HEADER
-      ================================================= */}
+      {/* Hero Header */}
       <section className="relative overflow-hidden bg-white border border-gray-200 rounded-3xl p-6 md:p-7 shadow-sm">
         <div className="absolute -top-24 -right-24 w-64 h-64 bg-emerald-100/50 rounded-full blur-3xl" />
         <div className="absolute -bottom-32 left-1/3 w-72 h-72 bg-blue-50 rounded-full blur-3xl" />
-
         <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
           <div>
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-100 text-[#19b673] text-xs font-bold">
-              <Zap size={13} />
-              Keep learning
+              <Zap size={13} /> Keep learning
             </div>
-
-            <h1 className="text-2xl md:text-3xl xl:text-4xl font-bold text-gray-900 mt-4">
-              Welcome back 👋
-            </h1>
-
+            <h1 className="text-2xl md:text-3xl xl:text-4xl font-bold text-gray-900 mt-4">Welcome back 👋</h1>
             <p className="text-sm md:text-base text-gray-500 mt-2 max-w-xl leading-6">
               Track your learning progress, continue your study plan, and keep building your knowledge every day.
             </p>
-
             <div className="flex flex-wrap items-center gap-3 mt-5">
               {currentStudyPlan ? (
                 <button
                   onClick={handleContinueStudyPlan}
                   className="group inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#19b673] text-white text-sm font-semibold hover:bg-[#159d63] shadow-sm hover:shadow-md transition"
                 >
-                  <PlayCircle size={17} />
-                  Continue Learning
-                  <ArrowRight
-                    size={16}
-                    className="group-hover:translate-x-1 transition-transform"
-                  />
+                  <PlayCircle size={17} /> Continue Learning
+                  <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
                 </button>
               ) : (
                 <button
                   onClick={() => navigate("/studyPlan")}
                   className="group inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#19b673] text-white text-sm font-semibold hover:bg-[#159d63] shadow-sm transition"
                 >
-                  <GraduationCap size={17} />
-                  Create Study Plan
-                  <ArrowRight
-                    size={16}
-                    className="group-hover:translate-x-1 transition-transform"
-                  />
+                  <GraduationCap size={17} /> Create Study Plan
+                  <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
                 </button>
               )}
-
               <button
                 onClick={fetchDashboard}
                 className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-gray-200 text-gray-700 text-sm font-semibold hover:bg-gray-50 transition shadow-sm"
               >
-                <RefreshCw size={16} />
-                Refresh
+                <RefreshCw size={16} /> Refresh
+              </button>
+              <button
+                onClick={handleExportDashboard}
+                disabled={exporting}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-800 transition shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {exporting ? (
+                  <>
+                    <RefreshCw size={16} className="animate-spin" /> Exporting...
+                  </>
+                ) : (
+                  <>
+                    <Download size={16} /> Export PDF
+                  </>
+                )}
               </button>
             </div>
           </div>
-
-          {/* STREAK */}
+          {/* Streak */}
           <div className="shrink-0">
             <div className="relative overflow-hidden min-w-[220px] bg-gradient-to-br from-orange-500 to-red-500 rounded-2xl p-5 text-white shadow-sm">
               <div className="absolute -right-5 -bottom-7 opacity-10">
                 <Flame size={130} />
               </div>
-
               <div className="relative z-10">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <p className="text-xs font-medium text-white/75">
-                      Current Streak
-                    </p>
+                    <p className="text-xs font-medium text-white/75">Current Streak</p>
                     <h2 className="text-3xl font-bold mt-1">
-                      {currentStreak}
-                      <span className="text-sm font-medium ml-1">days</span>
+                      {currentStreak} <span className="text-sm font-medium ml-1">days</span>
                     </h2>
                   </div>
                   <div className="w-11 h-11 rounded-xl bg-white/15 flex items-center justify-center">
                     <Flame size={23} />
                   </div>
                 </div>
-
                 <div className="mt-4 flex items-center justify-between text-xs">
                   <span className="text-white/70">Longest streak</span>
                   <span className="font-bold">{longestStreak} days</span>
@@ -344,9 +309,7 @@ const DashboardPage = () => {
         </div>
       </section>
 
-      {/* =================================================
-          OVERVIEW STATS
-      ================================================= */}
+      {/* Overview */}
       <section>
         <div className="flex items-center gap-3 mb-4">
           <div className="w-9 h-9 rounded-xl bg-[#19b673]/10 text-[#19b673] flex items-center justify-center">
@@ -357,26 +320,16 @@ const DashboardPage = () => {
             <p className="text-xs text-gray-500">Your overall learning statistics</p>
           </div>
         </div>
-
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
           {stats.map((stat) => {
             const Icon = stat.icon;
             return (
-              <div
-                key={stat.title}
-                className="bg-white border border-gray-200 rounded-2xl p-4 md:p-5 hover:-translate-y-0.5 hover:shadow-md transition-all duration-200"
-              >
+              <div key={stat.title} className="bg-white border border-gray-200 rounded-2xl p-4 md:p-5 hover:-translate-y-0.5 hover:shadow-md transition-all duration-200">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="text-[11px] md:text-xs font-medium text-gray-500 truncate">
-                      {stat.title}
-                    </p>
-                    <h2 className="text-xl md:text-2xl font-bold text-gray-900 mt-2">
-                      {stat.value}
-                    </h2>
-                    <p className="text-[10px] md:text-xs text-gray-400 mt-1.5 truncate">
-                      {stat.subtitle}
-                    </p>
+                    <p className="text-[11px] md:text-xs font-medium text-gray-500 truncate">{stat.title}</p>
+                    <h2 className="text-xl md:text-2xl font-bold text-gray-900 mt-2">{stat.value}</h2>
+                    <p className="text-[10px] md:text-xs text-gray-400 mt-1.5 truncate">{stat.subtitle}</p>
                   </div>
                   <div className={`w-9 h-9 md:w-10 md:h-10 shrink-0 rounded-xl ${stat.bg} ${stat.color} flex items-center justify-center`}>
                     <Icon size={18} />
@@ -388,19 +341,16 @@ const DashboardPage = () => {
         </div>
       </section>
 
-      {/* =================================================
-          CURRENT STUDY PLAN
-      ================================================= */}
+      {/* Current Study Plan */}
       <section className="bg-white border border-gray-200 rounded-3xl overflow-hidden shadow-sm">
         <div className="px-5 md:px-7 py-5 border-b border-gray-100 flex items-center justify-between">
           <div>
             <div className="flex items-center gap-2">
               <h2 className="font-bold text-gray-900">Current Study Plan</h2>
               {currentStudyPlan?.status && (
-                <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full capitalize ${
-                  currentStudyPlan.status === "completed" ? "bg-emerald-50 text-emerald-600" :
-                  currentStudyPlan.status === "paused" ? "bg-orange-50 text-orange-600" : "bg-blue-50 text-blue-600"
-                }`}>
+                <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full capitalize ${currentStudyPlan.status === "completed" ? "bg-emerald-50 text-emerald-600" :
+                    currentStudyPlan.status === "paused" ? "bg-orange-50 text-orange-600" : "bg-blue-50 text-blue-600"
+                  }`}>
                   {currentStudyPlan.status}
                 </span>
               )}
@@ -423,43 +373,21 @@ const DashboardPage = () => {
               onClick={() => navigate("/studyPlan")}
               className="mt-5 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#19b673] text-white text-sm font-semibold hover:bg-[#159d63] transition"
             >
-              Create Study Plan
-              <ArrowRight size={16} />
+              Create Study Plan <ArrowRight size={16} />
             </button>
           </div>
         ) : (
           <div className="p-5 md:p-7">
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
               <div className="min-w-0">
-                <h3 className="text-xl md:text-2xl font-bold text-gray-900">
-                  {currentStudyPlan.title}
-                </h3>
+                <h3 className="text-xl md:text-2xl font-bold text-gray-900">{currentStudyPlan.title}</h3>
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mt-3 text-sm text-gray-500">
-                  {currentStudyPlan.subject && (
-                    <span>Subject: <strong className="text-gray-700">{currentStudyPlan.subject}</strong></span>
-                  )}
-                  {currentStudyPlan.level && (
-                    <>
-                      <span className="text-gray-300">•</span>
-                      <span>Level: <strong className="text-gray-700">{currentStudyPlan.level}</strong></span>
-                    </>
-                  )}
-                  {currentStudyPlan.duration && (
-                    <>
-                      <span className="text-gray-300">•</span>
-                      <span>{currentStudyPlan.duration} days</span>
-                    </>
-                  )}
-                  {currentStudyPlan.dailyHours && (
-                    <>
-                      <span className="text-gray-300">•</span>
-                      <span>{currentStudyPlan.dailyHours} hrs/day</span>
-                    </>
-                  )}
+                  {currentStudyPlan.subject && <span>Subject: <strong className="text-gray-700">{currentStudyPlan.subject}</strong></span>}
+                  {currentStudyPlan.level && (<><span className="text-gray-300">•</span><span>Level: <strong className="text-gray-700">{currentStudyPlan.level}</strong></span></>)}
+                  {currentStudyPlan.duration && (<><span className="text-gray-300">•</span><span>{currentStudyPlan.duration} days</span></>)}
+                  {currentStudyPlan.dailyHours && (<><span className="text-gray-300">•</span><span>{currentStudyPlan.dailyHours} hrs/day</span></>)}
                 </div>
               </div>
-
-              {/* CIRCULAR PROGRESS */}
               <div className="flex items-center gap-4 shrink-0">
                 <div className="relative w-24 h-24">
                   <svg className="w-24 h-24 -rotate-90" viewBox="0 0 100 100">
@@ -476,37 +404,27 @@ const DashboardPage = () => {
                     <span className="text-[9px] text-gray-400 font-medium">Complete</span>
                   </div>
                 </div>
-
                 <div className="hidden sm:block">
                   <p className="text-xs text-gray-400">Plan Progress</p>
-                  <p className="text-sm font-bold text-gray-800 mt-1">
-                    {currentStudyPlan.completedDays || 0} of {currentStudyPlan.totalDays || 0} days
-                  </p>
+                  <p className="text-sm font-bold text-gray-800 mt-1">{currentStudyPlan.completedDays || 0} of {currentStudyPlan.totalDays || 0} days</p>
                   <p className="text-xs text-gray-400 mt-1">completed</p>
                 </div>
               </div>
             </div>
 
-            {/* DESKTOP PROGRESS */}
             <div className="mt-6 bg-gray-50 rounded-2xl p-5 border border-gray-100">
               <div className="flex items-center justify-between mb-3">
                 <div>
                   <p className="text-sm font-bold text-gray-800">Overall Progress</p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    {currentStudyPlan.completedDays || 0} of {currentStudyPlan.totalDays || 0} days completed
-                  </p>
+                  <p className="text-xs text-gray-500 mt-1">{currentStudyPlan.completedDays || 0} of {currentStudyPlan.totalDays || 0} days completed</p>
                 </div>
                 <span className="text-sm font-bold text-[#19b673]">{planProgress}%</span>
               </div>
               <div className="w-full h-3 bg-gray-200 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-[#19b673] to-emerald-400 rounded-full transition-all duration-700"
-                  style={{ width: `${planProgress}%` }}
-                />
+                <div className="h-full bg-gradient-to-r from-[#19b673] to-emerald-400 rounded-full transition-all duration-700" style={{ width: `${planProgress}%` }} />
               </div>
             </div>
 
-            {/* TODAY */}
             {today && (
               <div className="mt-6 rounded-2xl border border-gray-200 overflow-hidden">
                 <div className="p-5 md:p-6">
@@ -514,48 +432,24 @@ const DashboardPage = () => {
                     <div className="flex-1 min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="inline-flex items-center gap-1.5 text-xs font-bold text-[#19b673] bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-100">
-                          <CalendarDays size={13} />
-                          DAY {today.dayNumber}
+                          <CalendarDays size={13} /> DAY {today.dayNumber}
                         </span>
-                        {today.completed && (
-                          <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600">
-                            <CheckCircle2 size={14} /> Completed
-                          </span>
-                        )}
+                        {today.completed && (<span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600"><CheckCircle2 size={14} /> Completed</span>)}
                       </div>
-                      <h3 className="text-lg md:text-xl font-bold text-gray-900 mt-3">
-                        {today.topic || "Today's Learning"}
-                      </h3>
-                      {today.description && (
-                        <p className="text-sm text-gray-500 mt-2 leading-6 max-w-2xl">
-                          {today.description}
-                        </p>
-                      )}
+                      <h3 className="text-lg md:text-xl font-bold text-gray-900 mt-3">{today.topic || "Today's Learning"}</h3>
+                      {today.description && <p className="text-sm text-gray-500 mt-2 leading-6 max-w-2xl">{today.description}</p>}
                     </div>
-
                     <button
                       type="button"
                       onClick={handleContinueStudyPlan}
-                      className={`group inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-sm font-semibold shadow-sm transition-all duration-200 shrink-0 ${
-                        today.completed ? "bg-gray-900 text-white hover:bg-gray-800" : "bg-[#19b673] text-white hover:bg-[#159d63] hover:shadow-md"
-                      }`}
+                      className={`group inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-sm font-semibold shadow-sm transition-all duration-200 shrink-0 ${today.completed ? "bg-gray-900 text-white hover:bg-gray-800" : "bg-[#19b673] text-white hover:bg-[#159d63] hover:shadow-md"
+                        }`}
                     >
-                      {today.completed ? (
-                        <>
-                          <CheckCircle2 size={17} />
-                          Review Day
-                        </>
-                      ) : (
-                        <>
-                          <PlayCircle size={17} />
-                          Continue Learning
-                        </>
-                      )}
+                      {today.completed ? (<><CheckCircle2 size={17} /> Review Day</>) : (<><PlayCircle size={17} /> Continue Learning</>)}
                       <ArrowRight size={17} className="group-hover:translate-x-1 transition-transform" />
                     </button>
                   </div>
 
-                  {/* TASKS */}
                   {todayTasks.length > 0 && (
                     <div className="mt-6">
                       <div className="flex items-center justify-between mb-3">
@@ -564,10 +458,7 @@ const DashboardPage = () => {
                       </div>
                       <div className="rounded-xl border border-gray-100 overflow-hidden">
                         {todayTasks.map((task, index) => (
-                          <div
-                            key={index}
-                            className={`flex items-start gap-3 p-3.5 ${index !== todayTasks.length - 1 ? "border-b border-gray-150" : ""}`}
-                          >
+                          <div key={index} className={`flex items-start gap-3 p-3.5 ${index !== todayTasks.length - 1 ? "border-b border-gray-150" : ""}`}>
                             <div className="w-6 h-6 rounded-full bg-gray-50 border border-gray-200 flex items-center justify-center shrink-0">
                               <span className="text-[10px] font-bold text-gray-500">{index + 1}</span>
                             </div>
@@ -578,7 +469,6 @@ const DashboardPage = () => {
                     </div>
                   )}
 
-                  {/* TODAY STATUS */}
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-6">
                     <div className={`rounded-xl p-4 border ${today.quizCompleted ? "bg-emerald-50 border-emerald-100" : "bg-orange-50 border-orange-100"}`}>
                       <div className="flex items-center gap-2">
@@ -611,9 +501,7 @@ const DashboardPage = () => {
         )}
       </section>
 
-      {/* =================================================
-          OVERALL PROGRESS
-      ================================================= */}
+      {/* Overall Progress */}
       <section>
         <div className="flex items-center gap-3 mb-4">
           <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
@@ -626,7 +514,6 @@ const DashboardPage = () => {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-          {/* STUDY PLAN */}
           <div className="bg-white border border-gray-200 rounded-2xl p-6 hover:shadow-md transition">
             <div className="flex items-center justify-between gap-4">
               <div className="flex items-center gap-3">
@@ -649,7 +536,6 @@ const DashboardPage = () => {
             </div>
           </div>
 
-          {/* QUIZ */}
           <div className="bg-white border border-gray-200 rounded-2xl p-6 hover:shadow-md transition">
             <div className="flex items-center justify-between gap-4">
               <div className="flex items-center gap-3">
@@ -672,7 +558,6 @@ const DashboardPage = () => {
             </div>
           </div>
 
-          {/* SCORE */}
           <div className="relative overflow-hidden bg-[#19b673] rounded-2xl p-6 text-white shadow-sm">
             <div className="relative z-10">
               <div className="flex items-center justify-between">
@@ -692,12 +577,8 @@ const DashboardPage = () => {
         </div>
       </section>
 
-      {/* =================================================
-          RECENT ACTIVITY
-      ================================================= */}
+      {/* Recent Activity */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-        
-        {/* RECENT QUIZZES */}
         <section className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
           <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
             <div>
@@ -731,11 +612,8 @@ const DashboardPage = () => {
                     <div className="w-10 h-10 shrink-0 rounded-xl bg-orange-50 text-orange-500 flex items-center justify-center group-hover:bg-orange-100 transition">
                       <Trophy size={18} />
                     </div>
-
                     <div className="flex-1 min-w-0">
-                      <p className="font-bold text-sm text-gray-800 truncate">
-                        {quiz.title || "Untitled Quiz"}
-                      </p>
+                      <p className="font-bold text-sm text-gray-800 truncate">{quiz.title || "Untitled Quiz"}</p>
                       <div className="flex flex-wrap items-center gap-2 mt-1">
                         <span className="text-[11px] text-gray-400">Day {quiz.dayNumber || "-"}</span>
                         <span className="text-gray-300">•</span>
@@ -748,12 +626,10 @@ const DashboardPage = () => {
                         </div>
                       </div>
                     </div>
-
                     <div className="text-right shrink-0">
                       <p className="text-lg font-bold text-[#19b673]">{score}%</p>
                       <p className="text-[10px] text-gray-400 mt-0.5">{quiz.totalQuestions || 0} questions</p>
                     </div>
-
                     <ArrowRight size={17} className="text-gray-300 shrink-0 group-hover:text-[#19b673] group-hover:translate-x-0.5 transition" />
                   </button>
                 );
@@ -762,15 +638,12 @@ const DashboardPage = () => {
           )}
         </section>
 
-        {/* RECENT STUDY PLANS */}
         <section className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
           <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="font-bold text-gray-900">Recent Study Plans</h2>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">
-                  {recentStudyPlans.length}
-                </span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">{recentStudyPlans.length}</span>
               </div>
               <p className="text-xs text-gray-500 mt-1">Continue your learning journey</p>
             </div>
@@ -810,11 +683,9 @@ const DashboardPage = () => {
                           </p>
                         </div>
                       </div>
-
-                      <span className={`shrink-0 text-[10px] font-bold px-2.5 py-1 rounded-full capitalize ${
-                        plan.status === "completed" ? "bg-emerald-50 text-emerald-600" :
-                        plan.status === "paused" ? "bg-orange-50 text-orange-600" : "bg-blue-50 text-blue-600"
-                      }`}>
+                      <span className={`shrink-0 text-[10px] font-bold px-2.5 py-1 rounded-full capitalize ${plan.status === "completed" ? "bg-emerald-50 text-emerald-600" :
+                          plan.status === "paused" ? "bg-orange-50 text-orange-600" : "bg-blue-50 text-blue-600"
+                        }`}>
                         {plan.status || "active"}
                       </span>
                     </div>
@@ -848,9 +719,7 @@ const DashboardPage = () => {
         </section>
       </div>
 
-      {/* =================================================
-          PERFORMANCE SUMMARY
-      ================================================= */}
+      {/* Performance */}
       <section>
         <div className="flex items-center gap-3 mb-4">
           <div className="w-9 h-9 rounded-xl bg-yellow-50 text-yellow-600 flex items-center justify-center">
@@ -922,9 +791,7 @@ const DashboardPage = () => {
         </div>
       </section>
 
-      {/* =================================================
-          QUICK SUMMARY
-      ================================================= */}
+      {/* Summary */}
       <section className="bg-gradient-to-r from-gray-900 to-gray-800 rounded-3xl p-6 md:p-7 text-white overflow-hidden relative">
         <div className="absolute -right-16 -top-20 w-56 h-56 rounded-full bg-white/5" />
         <div className="relative z-10">
@@ -962,7 +829,6 @@ const DashboardPage = () => {
           </div>
         </div>
       </section>
-
     </div>
   );
 };
