@@ -1,3 +1,3 @@
-const api = "http://localhost:4000";
+const api = "https://ai-learning-app-lvih.onrender.com";
 
 export default api;
